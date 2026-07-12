@@ -6,6 +6,9 @@ import {
 	wrapError,
 } from '@src/server'
 import { DatabaseSync } from 'node:sqlite'
+import { rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { captureError } from '../../setup.js'
 
@@ -34,7 +37,38 @@ function nativeConstraintError(): unknown {
 	}
 }
 
+// Capture the native `node:sqlite` error a locked-database write throws, raw
+// (before the wrapper maps it) — a second connection writing while the first
+// holds an uncommitted `BEGIN IMMEDIATE` transaction, with a short `timeout` so
+// the lock fault surfaces promptly.
+function nativeBusyError(): unknown {
+	const path = join(tmpdir(), `sqlite-helpers-busy-${process.pid}-${Date.now()}.db`)
+	const holder = new DatabaseSync(path)
+	holder.exec('CREATE TABLE t (id INTEGER)')
+	holder.exec('BEGIN IMMEDIATE')
+	holder.prepare('INSERT INTO t VALUES (?)').run(1)
+	const contender = new DatabaseSync(path, { timeout: 50 })
+	try {
+		contender.prepare('INSERT INTO t VALUES (?)').run(2)
+		return undefined
+	} catch (error) {
+		return error
+	} finally {
+		contender.close()
+		holder.exec('ROLLBACK')
+		holder.close()
+		rmSync(path, { force: true })
+	}
+}
+
 describe('wrapError', () => {
+	it('maps a real node:sqlite locked-database fault to BUSY via the errcode mask', () => {
+		const wrapped = wrapError(nativeBusyError())
+		expect(wrapped).toBeInstanceOf(SQLiteError)
+		expect(wrapped.code).toBe('BUSY')
+		expect(typeof wrapped.context?.errcode).toBe('number')
+	})
+
 	it('maps a real node:sqlite constraint fault to CONSTRAINT via the errcode mask', () => {
 		const wrapped = wrapError(nativeConstraintError())
 		expect(wrapped).toBeInstanceOf(SQLiteError)

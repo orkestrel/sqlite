@@ -9,3 +9,13 @@
  * before comparing. Read only by `wrapError`.
  */
 export const SQLITE_CONSTRAINT = 19
+
+/**
+ * SQLite result code for a locked-database fault (`SQLITE_BUSY`).
+ *
+ * @remarks
+ * A native `errcode` packs the primary result in its low byte, with extended codes
+ * in the high bits, so the low byte is masked off before comparing. Read only by
+ * `wrapError`.
+ */
+export const SQLITE_BUSY = 5

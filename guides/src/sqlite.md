@@ -11,6 +11,10 @@ const db = createSQLiteDatabase({ path: ':memory:' }) // omit `path` for the sam
 db.connect() // open the handle (lazy + idempotent); calls before this throw a CLOSED SQLiteError
 db.exec('CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT, age INTEGER)')
 
+// `readonly`, `timeout`, and `foreignKeys` thread straight to node:sqlite's native
+// options; the database itself also implements `[Symbol.dispose]` (same as
+// `close`), so `using db = createSQLiteDatabase()` releases it automatically.
+
 db.prepare('INSERT INTO users VALUES (?, ?, ?)').run(['u1', 'Ada', 36]) // → { changes: 1, rowid: 1 }
 db.prepare('SELECT name FROM users WHERE age >= ?').all([18]) // → [{ name: 'Ada' }] — every adult
 ```
@@ -33,15 +37,16 @@ db.prepare('SELECT name FROM users WHERE age >= ?').all([18]) // → [{ name: 'A
 | API                 | Kind  | Summary                                                                                                    |
 | ------------------- | ----- | ---------------------------------------------------------------------------------------------------------- |
 | `SQLITE_CONSTRAINT` | const | SQLite result code (low byte `19`) `wrapError` masks the `errcode` against to flag a constraint violation. |
+| `SQLITE_BUSY`       | const | SQLite result code (low byte `5`) `wrapError` masks the `errcode` against to flag a locked-database fault. |
 
 ### Helpers and errors
 
-| API              | Kind     | Summary                                                                                   |
-| ---------------- | -------- | ----------------------------------------------------------------------------------------- |
-| `wrapError`      | function | Convert a thrown native `node:sqlite` error into a typed `SQLiteError`.                   |
-| `bindParameters` | function | Normalize `SQLiteParameters` to a native call's positional-spread or named shape.         |
-| `SQLiteError`    | class    | A wrapper error carrying a machine-readable `code` (`CLOSED` / `CONSTRAINT` / `UNKNOWN`). |
-| `isSQLiteError`  | function | Whether a value is a `SQLiteError`.                                                       |
+| API              | Kind     | Summary                                                                                            |
+| ---------------- | -------- | -------------------------------------------------------------------------------------------------- |
+| `wrapError`      | function | Convert a thrown native `node:sqlite` error into a typed `SQLiteError`.                            |
+| `bindParameters` | function | Normalize `SQLiteParameters` to a native call's positional-spread or named shape.                  |
+| `SQLiteError`    | class    | A wrapper error carrying a machine-readable `code` (`CLOSED` / `CONSTRAINT` / `BUSY` / `UNKNOWN`). |
+| `isSQLiteError`  | function | Whether a value is a `SQLiteError`.                                                                |
 
 ### Types
 
@@ -52,7 +57,7 @@ db.prepare('SELECT name FROM users WHERE age >= ?').all([18]) // → [{ name: 'A
 | `SQLiteParameters`         | type      | Bind parameters — positional (an array) or named (a record).                                                                                  |
 | `SQLiteRunResult`          | interface | The outcome of a non-query statement (`changes` / `rowid`) — `number` (a count / rowid past 2^53 truncates, acceptable for keys and changes). |
 | `SQLiteErrorCode`          | type      | The machine-readable `SQLiteError` code union.                                                                                                |
-| `SQLiteDatabaseOptions`    | interface | Options for `createSQLiteDatabase` (`path`).                                                                                                  |
+| `SQLiteDatabaseOptions`    | interface | Options for `createSQLiteDatabase` (`path` / `readonly` / `timeout` / `foreignKeys`).                                                         |
 | `SQLiteStatementInterface` | interface | The prepared-statement contract.                                                                                                              |
 | `SQLiteDatabaseInterface`  | interface | The database contract.                                                                                                                        |
 
@@ -61,6 +66,8 @@ Row values arrive as the native `SQLiteValue` types and are handed back as-is �
 ## Methods
 
 The public methods of each behavioral interface — one table per type, keyed by its backticked name, every call-signature member listed (its `readonly` data members, e.g. `path` / `connected`, stay in the Surface rows above). Each class implements its interface exactly — no extra public method — so this doubles as the per-instance method surface (AGENTS §22). Every one of these calls is **synchronous** and returns a plain value, never a `Promise`.
+
+`SQLiteDatabaseInterface` also declares `[Symbol.dispose](): void` — a symbol-keyed member, so it is documented here in prose rather than as a `Methods` table row (the guide-parity tooling keys method rows by identifier name). It closes the connection exactly like `close`, letting `using db = createSQLiteDatabase(...)` release it deterministically at the end of a block.
 
 #### `SQLiteDatabaseInterface`
 
@@ -92,6 +99,7 @@ These invariants hold across `src/server/sqlite` ↔ `sqlite.md`:
 4. **`SQLiteValue` values, plain SQL.** Reads return `SQLiteRow`s of native `SQLiteValue`s; writes bind `SQLiteValue`s. Per-row typing belongs above this layer, in the core database's contracts.
 5. **Native faults become `SQLiteError`.** Every native `node:sqlite` throw is mapped at the boundary to a `SQLiteError` carrying a machine-readable `code` — a constraint violation (a UNIQUE / PRIMARY KEY conflict) is detected as `'CONSTRAINT'`, anything else is `'UNKNOWN'`. Narrow a caught value with `isSQLiteError`.
 6. **`CLOSED` before connect.** The database connects lazily; an operation before `connect` (or after `close`) throws a `CLOSED` `SQLiteError`. `connect` is idempotent.
+7. **`BUSY` on lock contention.** A write that finds the database locked by another connection retries for `timeout` milliseconds (default `0` — fail immediately), then throws a `BUSY` `SQLiteError` — retryable, unlike the other codes.
 
 ## Patterns
 
@@ -164,6 +172,43 @@ db.close() // releases the connection; every operation gates CLOSED until reconn
 db.connected // false
 ```
 
+### Production options: readonly, timeout, foreignKeys
+
+```ts
+// Open an existing file read-only — a write throws (the file must already exist):
+const reader = createSQLiteDatabase({ path: '/data/app.db', readonly: true })
+
+// A busy timeout retries a locked database before failing BUSY:
+const writer = createSQLiteDatabase({ path: '/data/app.db', timeout: 2000 })
+
+// Foreign-key enforcement (node:sqlite defaults this to true when omitted):
+const enforced = createSQLiteDatabase({ foreignKeys: true })
+```
+
+### Disposing with `using`
+
+```ts
+{
+	using db = createSQLiteDatabase()
+	db.connect()
+	db.exec('CREATE TABLE t (id INTEGER)')
+} // db.close() runs automatically at the end of the block
+```
+
+### Retrying on BUSY
+
+```ts
+import { isSQLiteError } from '@src/server'
+
+try {
+	db.prepare('INSERT INTO t VALUES (?)').run([1]) // another connection holds the lock
+} catch (error) {
+	if (isSQLiteError(error) && error.code === 'BUSY') {
+		// retryable — back off briefly and retry, or raise the `timeout` option
+	}
+}
+```
+
 ### The boundary helpers directly
 
 ```ts
@@ -184,13 +229,15 @@ try {
 - **Use prepared statements with bound parameters**, never string-interpolated values — binding is the SQL-injection-safe path (pragmas, which can't bind, take trusted internal names only).
 - **Keep a transaction scope synchronous and tight** — the wrapper is synchronous, so a scope is a plain function body that commits on return and rolls back on a throw.
 - **Branch on `error.code`** (via `isSQLiteError`) rather than parsing a message — `'CONSTRAINT'` distinguishes a key conflict from any other fault.
+- **Retry `'BUSY'`, not the others** — it is the one retryable code; back off briefly (or raise `timeout`) before retrying the same operation.
+- **Prefer `using`** over a manual `try` / `finally close()` when a database's lifetime matches one block scope.
 
 ## Tests
 
 - [`tests/guides/src/parity.test.ts`](../../tests/guides/src/parity.test.ts) — the `## Surface` ↔ `src/server` bijection and the `## Methods` ↔ interface/class method parity.
-- [`tests/src/server/SQLiteDatabase.test.ts`](../../tests/src/server/SQLiteDatabase.test.ts) — the database in a real `:memory:` SQLite: connect / close lifecycle, the `CLOSED` gate, exec DDL, prepare round-trip, transaction commit and rollback, and pragma get + set.
+- [`tests/src/server/SQLiteDatabase.test.ts`](../../tests/src/server/SQLiteDatabase.test.ts) — the database in a real `:memory:` SQLite: connect / close lifecycle, the `CLOSED` gate, exec DDL, prepare round-trip, transaction commit and rollback, pragma get + set, and the production options — `readonly` rejecting a write, `foreignKeys` enforcing a real FK violation, `timeout` surfacing `BUSY` from a genuinely locked second connection, and `[Symbol.dispose]` closing inside a `using` block.
 - [`tests/src/server/SQLiteStatement.test.ts`](../../tests/src/server/SQLiteStatement.test.ts) — prepared statements: `run`'s result, positional and named binding, `get` / `all` / `iterate`, and a `CONSTRAINT` violation.
-- [`tests/src/server/helpers.test.ts`](../../tests/src/server/helpers.test.ts) — the wrapper's boundary helpers as pure units: `wrapError` mapping a thrown value to a typed `SQLiteError` (real constraint fault → `CONSTRAINT`, non-error → `UNKNOWN`, pass-through) and `bindParameters` normalizing parameters to the native binding shape (array → positional, record → named).
+- [`tests/src/server/helpers.test.ts`](../../tests/src/server/helpers.test.ts) — the wrapper's boundary helpers as pure units: `wrapError` mapping a thrown value to a typed `SQLiteError` (real constraint fault → `CONSTRAINT`, real locked-database fault → `BUSY`, non-error → `UNKNOWN`, pass-through) and `bindParameters` normalizing parameters to the native binding shape (array → positional, record → named).
 - [`tests/src/server/factories.test.ts`](../../tests/src/server/factories.test.ts) — `createSQLiteDatabase` returns a working `SQLiteDatabaseInterface` and defaults its path to `:memory:`.
 
 ## See also

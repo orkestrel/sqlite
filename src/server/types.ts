@@ -34,18 +34,35 @@ export interface SQLiteRunResult {
 	readonly rowid: number
 }
 
-/** A machine-readable {@link SQLiteError} code. */
-export type SQLiteErrorCode = 'CLOSED' | 'CONSTRAINT' | 'UNKNOWN'
+/**
+ * A machine-readable {@link SQLiteError} code.
+ *
+ * @remarks
+ * `'BUSY'` is retryable — it means a locked database was still held by another
+ * connection when the `timeout` (see {@link SQLiteDatabaseOptions}) elapsed; a
+ * caller may retry the operation, typically after backing off briefly.
+ */
+export type SQLiteErrorCode = 'CLOSED' | 'CONSTRAINT' | 'BUSY' | 'UNKNOWN'
 
 /**
  * Options for `createSQLiteDatabase`.
  *
  * @remarks
  * `path` is the database file path, or the special name `':memory:'` for an
- * in-memory database (the default when omitted).
+ * in-memory database (the default when omitted). `readonly` opens the
+ * connection read-only (native `readOnly`) — an absent file fails to open
+ * rather than being created. `timeout` is the busy-timeout in milliseconds
+ * (native `timeout`) — how long SQLite retries a locked database before
+ * failing with a `BUSY` {@link SQLiteError}; defaults to `0` (fail
+ * immediately) when omitted. `foreignKeys` enables foreign-key constraint
+ * enforcement (native `enableForeignKeyConstraints`); `node:sqlite` defaults
+ * this to `true` when omitted.
  */
 export interface SQLiteDatabaseOptions {
 	readonly path?: string
+	readonly readonly?: boolean
+	readonly timeout?: number
+	readonly foreignKeys?: boolean
 }
 
 /**
@@ -79,6 +96,8 @@ export interface SQLiteStatementInterface {
  * results (DDL, pragmas); `prepare` compiles a {@link SQLiteStatementInterface};
  * `transaction` runs a scope between `BEGIN` and `COMMIT`, rolling back on a
  * throw; `pragma` reads (or sets then reads) a single PRAGMA value.
+ * `[Symbol.dispose]` closes the connection (same as `close`), enabling `using`
+ * to release it deterministically at the end of a block.
  */
 export interface SQLiteDatabaseInterface {
 	readonly path: string
@@ -89,4 +108,5 @@ export interface SQLiteDatabaseInterface {
 	prepare(sql: string): SQLiteStatementInterface
 	transaction<R>(scope: () => R): R
 	pragma(name: string, value?: string | number): SQLiteValue | undefined
+	[Symbol.dispose](): void
 }

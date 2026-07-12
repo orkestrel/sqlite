@@ -1,6 +1,6 @@
 import type { SQLiteParameters, SQLiteValue } from './types.js'
 import { isArray, isObject } from '@orkestrel/contract'
-import { SQLITE_CONSTRAINT } from './constants.js'
+import { SQLITE_BUSY, SQLITE_CONSTRAINT } from './constants.js'
 import { SQLiteError } from './errors.js'
 
 // The wrapper's boundary helpers, shared by `SQLiteDatabase` and `SQLiteStatement`:
@@ -19,9 +19,10 @@ import { SQLiteError } from './errors.js'
  * not `isRecord` — a native `node:sqlite` error is an `Error` instance, so its
  * prototype fails the plain-record test) to read its `errcode` — a numeric SQLite
  * result code whose low byte identifies a constraint violation
- * (`SQLITE_CONSTRAINT`), mapped to code `'CONSTRAINT'`; anything else is
- * `'UNKNOWN'`. The original message is preserved and `{ errcode }` carried in
- * `context` when present. An already-typed `SQLiteError` is returned unchanged.
+ * (`SQLITE_CONSTRAINT`), mapped to code `'CONSTRAINT'`; a locked-database fault
+ * (`SQLITE_BUSY`) is mapped to `'BUSY'`; anything else is `'UNKNOWN'`. The
+ * original message is preserved and `{ errcode }` carried in `context` when
+ * present. An already-typed `SQLiteError` is returned unchanged.
  *
  * @param error - The thrown value to convert
  * @returns The equivalent `SQLiteError`
@@ -34,7 +35,11 @@ export function wrapError(error: unknown): SQLiteError {
 			: undefined
 	const message = error instanceof Error ? error.message : 'Unknown SQLite error'
 	const code =
-		errcode !== undefined && (errcode & 0xff) === SQLITE_CONSTRAINT ? 'CONSTRAINT' : 'UNKNOWN'
+		errcode !== undefined && (errcode & 0xff) === SQLITE_CONSTRAINT
+			? 'CONSTRAINT'
+			: errcode !== undefined && (errcode & 0xff) === SQLITE_BUSY
+				? 'BUSY'
+				: 'UNKNOWN'
 	return new SQLiteError(code, message, errcode !== undefined ? { errcode } : undefined)
 }
 

@@ -23,10 +23,16 @@ import { SQLiteStatement } from './SQLiteStatement.js'
  */
 export class SQLiteDatabase implements SQLiteDatabaseInterface {
 	readonly #path: string
+	readonly #readonly: boolean | undefined
+	readonly #timeout: number | undefined
+	readonly #foreignKeys: boolean | undefined
 	#database: DatabaseSync | undefined
 
 	constructor(options: SQLiteDatabaseOptions) {
 		this.#path = options.path ?? ':memory:'
+		this.#readonly = options.readonly
+		this.#timeout = options.timeout
+		this.#foreignKeys = options.foreignKeys
 	}
 
 	get path(): string {
@@ -38,12 +44,23 @@ export class SQLiteDatabase implements SQLiteDatabaseInterface {
 	}
 
 	connect(): void {
-		if (this.#database === undefined) this.#database = new DatabaseSync(this.#path)
+		if (this.#database === undefined) {
+			this.#database = new DatabaseSync(this.#path, {
+				readOnly: this.#readonly,
+				timeout: this.#timeout,
+				enableForeignKeyConstraints: this.#foreignKeys,
+			})
+		}
 	}
 
 	close(): void {
 		this.#database?.close()
 		this.#database = undefined
+	}
+
+	/** Close the connection — enables `using db = createSQLiteDatabase(...)`. */
+	[Symbol.dispose](): void {
+		this.close()
 	}
 
 	exec(sql: string): void {
