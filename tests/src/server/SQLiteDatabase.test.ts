@@ -1,6 +1,6 @@
 import { createSQLiteDatabase, SQLiteError } from '@src/server'
 import { describe, expect, it } from 'vitest'
-import { sqliteErrorCode } from '../../../setupServer.js'
+import { sqliteErrorCode } from '../../setupServer.js'
 
 // The SQLite wrapper in a real in-memory database (no mocks, AGENTS §16) —
 // connect / connected / close lifecycle, the CLOSED gate before connect and after

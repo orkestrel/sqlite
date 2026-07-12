@@ -6,11 +6,9 @@ import { SQLiteDatabase } from './SQLiteDatabase.js'
  *
  * @remarks
  * The wrapper connects lazily — call `connect` (or it is required by the first
- * operation, which throws `CLOSED` until then). For the cross-environment
- * database API (typed rows, queries, relations), pass a SQLite driver to
- * `createDatabase` from `@src/core` instead — this is the lower-level native
- * handle that driver is built on, the server counterpart to
- * `createIndexedDBDatabase`.
+ * operation, which throws `CLOSED` until then). This is the lower-level native
+ * handle a higher-level typed database engine would be built on; here it ships
+ * as the standalone, server-native SQLite surface.
  *
  * @param options - The database `path` (a file path, or `':memory:'` by default)
  * @returns A typed {@link SQLiteDatabaseInterface}

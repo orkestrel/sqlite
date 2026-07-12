@@ -7,7 +7,7 @@ import {
 } from '@src/server'
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
-import { captureError } from '../../../setup.js'
+import { captureError } from '../../setup.js'
 
 // The SQLite wrapper's boundary helpers as pure units (no mocks, AGENTS §16):
 // `wrapError` maps a thrown value to a typed `SQLiteError` (a real `node:sqlite`

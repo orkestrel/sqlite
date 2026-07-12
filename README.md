@@ -1,32 +1,33 @@
-# @orkestrel/router
+# @orkestrel/sqlite
 
-A typed request router for the `@orkestrel` line — the first `@orkestrel`
-package to ship both server and browser environments alongside its shared
-core. Built to sit beside `@orkestrel/contract` (validation) and
-`@orkestrel/emitter` (observable lifecycle), reusing both as it takes shape.
+A typed, synchronous SQLite wrapper for the `@orkestrel` line — a thin,
+zero-dependency skin over Node's built-in `node:sqlite` (`DatabaseSync` /
+`StatementSync`) giving prepared statements, transactions, and pragmas. Built
+on `@orkestrel/contract` for its boundary narrowing.
 
 ## Install
 
 ```sh
-npm install @orkestrel/router
+npm install @orkestrel/sqlite
 ```
 
 ## Requirements
 
 - Node.js >= 24
-- ESM-only (no CommonJS build)
-- Server and browser environments both supported
+- `node:sqlite` (Node's built-in SQLite module)
+- Server-only — no CommonJS/browser split, single Node-native surface
 
 ## Status
 
-The public API is under design and not yet implemented — this package
-currently ships no runtime code. This README will gain an install snippet,
-usage examples, and a guide link once the design lands.
+Pre-release. The public API documented in [`guides/src/sqlite.md`](guides/src/sqlite.md)
+is implemented and covered by tests, but the package has not yet reached a
+stable `1.0` release.
 
 ## Package
 
-Published as three environment-scoped entry points per the `exports` field in
-`package.json`: a shared core, `./browser`, and `./server`.
+Published as a single Node-only surface per the `exports` field in
+`package.json` — one `.` entry backed by a CommonJS build of `src/server`
+(required by `node:sqlite`'s CJS-only shape at this Node version).
 
 ## License
 

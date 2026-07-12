@@ -14,8 +14,8 @@ const resolve = {
 	),
 }
 
-// Base: shared resolve + build defaults + src:core tests.
-export const srcCore = (config?: UserConfig): UserConfig =>
+// Base: shared resolve + build defaults + src:server tests.
+export const srcServer = (config?: UserConfig): UserConfig =>
 	mergeConfig(
 		{
 			resolve,
@@ -23,11 +23,21 @@ export const srcCore = (config?: UserConfig): UserConfig =>
 				emptyOutDir: true,
 				sourcemap: true,
 				minify: false,
+				lib: {
+					entry: resolveWorkspacePath('src/server/index.ts'),
+					formats: ['cjs'],
+					fileName: () => 'index.cjs',
+				},
+				outDir: 'dist/src/server',
+				target: 'node22',
+				rolldownOptions: {
+					external: (id: string) => id.startsWith('node:'),
+				},
 			},
 			test: {
-				name: { label: 'src:core', color: 'magenta' },
-				include: ['tests/src/core/**/*.test.ts'],
-				setupFiles: ['./tests/setup.ts'],
+				name: { label: 'src:server', color: 'red' },
+				include: ['tests/src/server/**/*.test.ts'],
+				setupFiles: ['./tests/setup.ts', './tests/setupServer.ts'],
 				environment: 'node',
 				browser: { enabled: false },
 			},
@@ -35,10 +45,11 @@ export const srcCore = (config?: UserConfig): UserConfig =>
 		config ?? {},
 	)
 
-// Extends srcCore: the guides-parity suite. Node env — it reads the real
-// guides/*.md and the documented source modules off disk — but resolves like core tests.
+// Extends srcServer: the guides-parity suite. Node env — it reads the real
+// guides/*.md and the documented source modules off disk — but resolves like
+// server tests.
 export const guides = (config?: UserConfig): UserConfig =>
-	srcCore(
+	srcServer(
 		mergeConfig(
 			{
 				test: {
@@ -51,43 +62,9 @@ export const guides = (config?: UserConfig): UserConfig =>
 		),
 	)
 
-// Extends srcCore: server-only library (`src/server`, e.g. the SQLite wrapper +
-// driver over node:sqlite). Builds a CJS lib for Node and runs its tests in the
-// node environment. Externalizes `node:*` (so node:sqlite is never bundled) AND
-// `@src/core` → the sibling `dist/src/core` (CJS) build, exactly as srcBrowser
-// does (core and server ship as two subpaths of one package). Build-only — the
-// test project resolves `@src/core` from source through the shared `resolve` alias.
-export const srcServer = (config?: UserConfig): UserConfig =>
-	srcCore(
-		mergeConfig(
-			{
-				build: {
-					lib: {
-						entry: resolveWorkspacePath('src/server/index.ts'),
-						formats: ['cjs'],
-						fileName: () => 'index.cjs',
-					},
-					outDir: 'dist/src/server',
-					target: 'node22',
-					rolldownOptions: {
-						external: (id: string) => id === '@src/core' || id.startsWith('node:'),
-						output: { paths: { '@src/core': '../core/index.cjs' } },
-					},
-				},
-				test: {
-					name: { label: 'src:server', color: 'red' },
-					include: ['tests/src/server/**/*.test.ts'],
-					exclude: ['tests/src/core/**/*.test.ts'],
-					setupFiles: ['./tests/setup.ts', './tests/setupServer.ts'],
-				},
-			},
-			config ?? {},
-		),
-	)
-
 export default defineConfig({
 	resolve,
 	test: {
-		projects: [srcCore, srcServer, guides],
+		projects: [srcServer, guides],
 	},
 })

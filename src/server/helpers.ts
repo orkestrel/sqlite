@@ -1,5 +1,5 @@
 import type { SQLiteParameters, SQLiteValue } from './types.js'
-import { isArray, isObject } from '@src/core'
+import { isArray, isObject } from '@orkestrel/contract'
 import { SQLITE_CONSTRAINT } from './constants.js'
 import { SQLiteError } from './errors.js'
 

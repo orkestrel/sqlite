@@ -1,6 +1,6 @@
 # SQLite
 
-> The server-native storage layer: a lean, typed, **synchronous** wrapper over Node's built-in [`node:sqlite`](https://nodejs.org/api/sqlite.html) — zero npm dependencies, just a thin typed skin on `DatabaseSync` / `StatementSync`. It surfaces exactly SQLite's native power — prepared statements, transactions, and pragmas — and deliberately **none** of what the core [database](databases.md) engine already provides over its portable `scan`: there is no query / filter / sort / aggregate builder here, because that one query engine lives in core and runs over every backend. So this wrapper stays small on purpose; it is the raw native handle, not a second ORM. The SQLite [`DriverInterface`](databases.md) (the database backend) is built on top of it — the driver never reaches past it to raw `node:sqlite` — yet standalone server code can hold the handle directly when it just wants typed SQL. It is the server counterpart to the browser's [IndexedDB](indexeddb.md) wrapper, the same lean-native discipline on a synchronous engine. Source: [`src/server/sqlite`](../../src/server/sqlite). Surfaced through the `@src/server` barrel.
+> A lean, typed, **synchronous** wrapper over Node's built-in [`node:sqlite`](https://nodejs.org/api/sqlite.html) — zero npm dependencies, just a thin typed skin on `DatabaseSync` / `StatementSync`. It surfaces exactly SQLite's native power — prepared statements, transactions, and pragmas — and deliberately no query / filter / sort / aggregate builder: it is the raw native handle, not an ORM, so a caller reaching for typed querying builds that layer on top. Source: [`src/server`](../../src/server). Surfaced through the `@src/server` barrel.
 
 ## Surface
 
@@ -157,24 +157,43 @@ db.pragma('user_version', 7) // set then read → 7 (a cheap on-disk schema-vers
 db.pragma('journal_mode', 'WAL') // set then read → 'wal' — durable write-ahead logging for a file db
 ```
 
+### Closing a connection
+
+```ts
+db.close() // releases the connection; every operation gates CLOSED until reconnect
+db.connected // false
+```
+
+### The boundary helpers directly
+
+```ts
+import { bindParameters, wrapError } from '@src/server'
+
+bindParameters(['u1', 'Ada']) // → { positional: ['u1', 'Ada'] }
+bindParameters({ id: 'u1' }) // → { named: { id: 'u1' } }
+
+try {
+	db.exec('not sql')
+} catch (error) {
+	wrapError(error) // a typed SQLiteError, mapped from the native throw
+}
+```
+
 ### Practices
 
-- **Reach for the core database, not raw SQL, for queries** — `createDatabase` over the SQLite driver gives typed rows, the query engine, and relations; this wrapper is the native handle that driver is built on.
 - **Use prepared statements with bound parameters**, never string-interpolated values — binding is the SQL-injection-safe path (pragmas, which can't bind, take trusted internal names only).
 - **Keep a transaction scope synchronous and tight** — the wrapper is synchronous, so a scope is a plain function body that commits on return and rolls back on a throw.
 - **Branch on `error.code`** (via `isSQLiteError`) rather than parsing a message — `'CONSTRAINT'` distinguishes a key conflict from any other fault.
 
 ## Tests
 
-- [`tests/guides/parity.test.ts`](../../tests/guides/src/parity.test.ts) — the `## Surface` ↔ `src/server/sqlite` bijection and the `## Methods` ↔ interface/class method parity.
-- [`tests/src/server/sqlite/SQLiteDatabase.test.ts`](../../tests/src/server/sqlite/SQLiteDatabase.test.ts) — the database in a real `:memory:` SQLite: connect / close lifecycle, the `CLOSED` gate, exec DDL, prepare round-trip, transaction commit and rollback, and pragma get + set.
-- [`tests/src/server/sqlite/SQLiteStatement.test.ts`](../../tests/src/server/sqlite/SQLiteStatement.test.ts) — prepared statements: `run`'s result, positional and named binding, `get` / `all` / `iterate`, and a `CONSTRAINT` violation.
-- [`tests/src/server/sqlite/helpers.test.ts`](../../tests/src/server/sqlite/helpers.test.ts) — the wrapper's boundary helpers as pure units: `wrapError` mapping a thrown value to a typed `SQLiteError` (real constraint fault → `CONSTRAINT`, non-error → `UNKNOWN`, pass-through) and `bindParameters` normalizing parameters to the native binding shape (array → positional, record → named).
-- [`tests/src/server/sqlite/factories.test.ts`](../../tests/src/server/sqlite/factories.test.ts) — `createSQLiteDatabase` returns a working `SQLiteDatabaseInterface` and defaults its path to `:memory:`.
+- [`tests/guides/src/parity.test.ts`](../../tests/guides/src/parity.test.ts) — the `## Surface` ↔ `src/server` bijection and the `## Methods` ↔ interface/class method parity.
+- [`tests/src/server/SQLiteDatabase.test.ts`](../../tests/src/server/SQLiteDatabase.test.ts) — the database in a real `:memory:` SQLite: connect / close lifecycle, the `CLOSED` gate, exec DDL, prepare round-trip, transaction commit and rollback, and pragma get + set.
+- [`tests/src/server/SQLiteStatement.test.ts`](../../tests/src/server/SQLiteStatement.test.ts) — prepared statements: `run`'s result, positional and named binding, `get` / `all` / `iterate`, and a `CONSTRAINT` violation.
+- [`tests/src/server/helpers.test.ts`](../../tests/src/server/helpers.test.ts) — the wrapper's boundary helpers as pure units: `wrapError` mapping a thrown value to a typed `SQLiteError` (real constraint fault → `CONSTRAINT`, non-error → `UNKNOWN`, pass-through) and `bindParameters` normalizing parameters to the native binding shape (array → positional, record → named).
+- [`tests/src/server/factories.test.ts`](../../tests/src/server/factories.test.ts) — `createSQLiteDatabase` returns a working `SQLiteDatabaseInterface` and defaults its path to `:memory:`.
 
 ## See also
 
-- [`databases.md`](databases.md) — the cross-environment database, tables, and query layer the SQLite driver plugs into.
-- [`indexeddb.md`](indexeddb.md) — the browser counterpart, the same lean-native-wrapper discipline.
 - [`AGENTS.md`](../../AGENTS.md) — §14 untyped-boundary narrowing, §22 documentation-as-contracts.
-- [`README.md`](README.md) — the guides index.
+- [`README.md`](../README.md) — the guides index.

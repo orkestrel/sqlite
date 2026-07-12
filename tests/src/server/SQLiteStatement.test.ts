@@ -2,7 +2,7 @@ import type { SQLiteRow } from '@src/server'
 import { createSQLiteDatabase } from '@src/server'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { SQLiteDatabaseInterface } from '@src/server'
-import { sqliteErrorCode } from '../../../setupServer.js'
+import { sqliteErrorCode } from '../../setupServer.js'
 
 // SQLiteStatement over a real in-memory database (no mocks, AGENTS §16) — run's
 // result shape, positional (`?`) and named (a record) parameter binding, get /
