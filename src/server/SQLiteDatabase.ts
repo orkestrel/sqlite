@@ -18,7 +18,9 @@ import { SQLiteStatement } from './SQLiteStatement.js'
  * private gate that throws a `CLOSED` `SQLiteError` before `connect` or after
  * `close`. `exec` runs result-less SQL; `prepare` compiles a `SQLiteStatement`;
  * `transaction` wraps a scope in `BEGIN` / `COMMIT`, rolling back on a throw;
- * `pragma` reads (or sets then reads) one PRAGMA value — `name` is trusted
+ * `begin` / `commit` / `rollback` expose those same primitives directly for a
+ * long-lived or externally-driven transaction; `pragma` reads (or sets then
+ * reads) one PRAGMA value — `name` is trusted
  * internal use only, never untrusted input, since pragma names cannot be bound
  * as parameters. `transacting` reports whether a transaction is currently open
  * (node:sqlite's `isTransaction`), `false` when not connected. A native fault
@@ -90,21 +92,33 @@ export class SQLiteDatabase implements SQLiteDatabaseInterface {
 	}
 
 	transaction<R>(scope: () => R): R {
-		this.exec('BEGIN')
+		this.begin()
 		try {
 			const result = scope()
-			this.exec('COMMIT')
+			this.commit()
 			return result
 		} catch (error) {
 			// A ROLLBACK fault (e.g. the database was closed by the scope) must never
 			// mask the scope's own error — the caller needs to see why it failed.
 			try {
-				this.exec('ROLLBACK')
+				this.rollback()
 			} catch {
 				// swallowed — the original `error` is what the caller needs to see
 			}
 			throw error
 		}
+	}
+
+	begin(): void {
+		this.exec('BEGIN')
+	}
+
+	commit(): void {
+		this.exec('COMMIT')
+	}
+
+	rollback(): void {
+		this.exec('ROLLBACK')
 	}
 
 	// Pragmas cannot use bind parameters, so the value is interpolated — safe for

@@ -29,7 +29,7 @@ db.prepare('SELECT name FROM users WHERE age >= ?').all([18]) // → [{ name: 'A
 
 | API               | Kind  | Summary                                                                             |
 | ----------------- | ----- | ----------------------------------------------------------------------------------- |
-| `SQLiteDatabase`  | class | The database — `connect` / `close` / `exec` / `prepare` / `transaction` / `pragma`. |
+| `SQLiteDatabase`  | class | The database — `connect` / `close` / `exec` / `prepare` / `transaction` / `begin` / `commit` / `rollback` / `pragma`. |
 | `SQLiteStatement` | class | A prepared statement — `run` / `get` / `all` / `iterate`.                           |
 
 ### Constants
@@ -67,20 +67,23 @@ Row values arrive as the native `SQLiteValue` types and are handed back as-is �
 
 The public methods of each behavioral interface — one table per type, keyed by its backticked name, every call-signature member listed (its `readonly` data members, e.g. `path` / `connected` / `transacting`, stay in the Surface rows above). Each class implements its interface exactly — no extra public method — so this doubles as the per-instance method surface (AGENTS §22). Every one of these calls is **synchronous** and returns a plain value, never a `Promise`.
 
-`SQLiteDatabaseInterface` also exposes `readonly transacting: boolean` — whether a transaction is currently open on this connection (node:sqlite's `isTransaction`, wrapping `sqlite3_get_autocommit()`), `false` when not connected. `transaction(scope)` sets it for the scope's duration; a manual `exec('BEGIN')` / `exec('COMMIT')` / `exec('ROLLBACK')` sets and clears it identically, since `transaction` is itself built on those same statements.
+`SQLiteDatabaseInterface` also exposes `readonly transacting: boolean` — whether a transaction is currently open on this connection (node:sqlite's `isTransaction`, wrapping `sqlite3_get_autocommit()`), `false` when not connected. `transaction(scope)` sets it for the scope's duration; `begin()` / `commit()` / `rollback()` set and clear it identically, since `transaction` is itself built on those same primitives. `transaction(scope)` remains the right tool whenever the whole transaction fits in one synchronous scope; `begin` / `commit` / `rollback` exist for a long-lived or externally-driven transaction that spans async caller code and so cannot be expressed as a single synchronous scope.
 
 `SQLiteDatabaseInterface` also declares `[Symbol.dispose](): void` — a symbol-keyed member, so it is documented here in prose rather than as a `Methods` table row (the guide-parity tooling keys method rows by identifier name). It closes the connection exactly like `close`, letting `using db = createSQLiteDatabase(...)` release it deterministically at the end of a block.
 
 #### `SQLiteDatabaseInterface`
 
-| Method        | Returns                    | Behavior                                                                                          |
-| ------------- | -------------------------- | ------------------------------------------------------------------------------------------------- |
-| `connect`     | `void`                     | Open the underlying connection — lazy and idempotent; a second call is a no-op.                   |
-| `close`       | `void`                     | Release the connection; afterward every operation gates `CLOSED` until reconnect.                 |
-| `exec`        | `void`                     | Run one or more result-less SQL statements (DDL, pragmas) in a single call.                       |
-| `prepare`     | `SQLiteStatementInterface` | Compile SQL into a reusable prepared statement (the only path that runs queries).                 |
-| `transaction` | `R`                        | Run `scope` between `BEGIN` and `COMMIT`, rolling the whole scope back and rethrowing on a throw. |
-| `pragma`      | `SQLiteValue \| undefined` | Read a single PRAGMA, or set then read it when a `value` is passed.                               |
+| Method        | Returns                    | Behavior                                                                                                   |
+| ------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `connect`     | `void`                     | Open the underlying connection — lazy and idempotent; a second call is a no-op.                            |
+| `close`       | `void`                     | Release the connection; afterward every operation gates `CLOSED` until reconnect.                          |
+| `exec`        | `void`                     | Run one or more result-less SQL statements (DDL, pragmas) in a single call.                                |
+| `prepare`     | `SQLiteStatementInterface` | Compile SQL into a reusable prepared statement (the only path that runs queries).                          |
+| `transaction` | `R`                        | Run `scope` between `BEGIN` and `COMMIT`, rolling the whole scope back and rethrowing on a throw.          |
+| `begin`       | `void`                     | Open a transaction (`BEGIN`); throws the native fault (e.g. a nested `BEGIN`) as a `SQLiteError`.          |
+| `commit`      | `void`                     | Commit the open transaction (`COMMIT`); throws the native fault as a `SQLiteError` when none is open.      |
+| `rollback`    | `void`                     | Roll back the open transaction (`ROLLBACK`); throws the native fault as a `SQLiteError` when none is open. |
+| `pragma`      | `SQLiteValue \| undefined` | Read a single PRAGMA, or set then read it when a `value` is passed.                                        |
 
 #### `SQLiteStatementInterface`
 
@@ -144,6 +147,26 @@ db.transaction(() => {
 	db.prepare('INSERT INTO users VALUES (?, ?, ?)').run(['u4', 'Sam', 22])
 	db.prepare('UPDATE users SET age = age + 1 WHERE id = ?').run(['u1'])
 }) // commits together; a throw rolls the whole scope back and rethrows
+```
+
+### Long-lived transactions with begin / commit / rollback
+
+```ts
+// A transaction that must span async caller code (a request handle held open
+// across awaits) can't fit in one synchronous transaction(scope) — use the
+// primitives directly instead.
+db.begin()
+try {
+	db.prepare('INSERT INTO users VALUES (?, ?, ?)').run(['u5', 'Kai', 19])
+	await doSomethingAsync() // caller-driven work between begin and commit
+	db.commit()
+} catch (error) {
+	db.rollback()
+	throw error
+}
+
+// Branch on `transacting` instead of catching a nested-BEGIN fault:
+if (!db.transacting) db.begin()
 ```
 
 ### Branching on a typed fault
@@ -240,7 +263,8 @@ try {
 - **Retry `'BUSY'`, not the others** — it is the one retryable code; back off briefly (or raise `timeout`) before retrying the same operation.
 - **Prefer `using`** over a manual `try` / `finally close()` when a database's lifetime matches one block scope.
 - **Enable `bigints` when integers may exceed `Number.MAX_SAFE_INTEGER`** — writes already accept `bigint`, but a read of an out-of-range stored integer throws unless `bigints` is set; note the option applies to every integer column, not selectively.
-- **Branch on `transacting` instead of catching a nested-`BEGIN` error** — a consumer composing its own `BEGIN` (e.g. a migration step joining an enclosing transaction) checks `db.transacting` first and skips its own `BEGIN` / `COMMIT` when one is already open, rather than issuing `BEGIN` unconditionally and handling the "cannot start a transaction within a transaction" fault.
+- **Branch on `transacting` instead of catching a nested-`BEGIN` error** — a consumer composing its own `begin()` (e.g. a migration step joining an enclosing transaction) checks `db.transacting` first and skips its own `begin()` / `commit()` when one is already open, rather than issuing `begin()` unconditionally and handling the "cannot start a transaction within a transaction" fault.
+- **Use `begin()` / `commit()` / `rollback()` only for a long-lived or externally-driven transaction** that spans async caller code — `transaction(scope)` stays the right tool whenever the whole transaction fits in one synchronous scope.
 
 ## Tests
 

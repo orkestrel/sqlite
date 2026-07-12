@@ -150,6 +150,52 @@ describe('SQLiteDatabase — transaction', () => {
 	})
 })
 
+describe('SQLiteDatabase — begin / commit / rollback', () => {
+	it('persists writes made between begin and commit', () => {
+		const db = createSQLiteDatabase()
+		db.connect()
+		db.exec('CREATE TABLE t (id INTEGER PRIMARY KEY)')
+		db.begin()
+		expect(db.transacting).toBe(true)
+		db.prepare('INSERT INTO t VALUES (?)').run([1])
+		db.commit()
+		expect(db.transacting).toBe(false)
+		expect(db.prepare('SELECT COUNT(*) AS n FROM t').get()).toEqual({ n: 1 })
+	})
+
+	it('discards writes made between begin and rollback', () => {
+		const db = createSQLiteDatabase()
+		db.connect()
+		db.exec('CREATE TABLE t (id INTEGER PRIMARY KEY)')
+		db.begin()
+		db.prepare('INSERT INTO t VALUES (?)').run([1])
+		expect(db.transacting).toBe(true)
+		db.rollback()
+		expect(db.transacting).toBe(false)
+		expect(db.prepare('SELECT COUNT(*) AS n FROM t').get()).toEqual({ n: 0 })
+	})
+
+	it('throws the native fault as a SQLiteError on a nested begin', () => {
+		const db = createSQLiteDatabase()
+		db.connect()
+		db.begin()
+		expect(() => db.begin()).toThrow(SQLiteError)
+		db.rollback()
+	})
+
+	it('throws the native fault as a SQLiteError committing without an open transaction', () => {
+		const db = createSQLiteDatabase()
+		db.connect()
+		expect(() => db.commit()).toThrow(SQLiteError)
+	})
+
+	it('throws the native fault as a SQLiteError rolling back without an open transaction', () => {
+		const db = createSQLiteDatabase()
+		db.connect()
+		expect(() => db.rollback()).toThrow(SQLiteError)
+	})
+})
+
 describe('SQLiteDatabase — bigints', () => {
 	it('throws on read for an out-of-range integer without bigints enabled', () => {
 		const db = createSQLiteDatabase()

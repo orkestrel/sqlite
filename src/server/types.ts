@@ -105,8 +105,13 @@ export interface SQLiteStatementInterface {
  * trusted internal use only, never untrusted input, since pragma names cannot
  * be bound as parameters. `transacting` reports whether a transaction is
  * currently open on this connection — node:sqlite's `isTransaction` (wraps
- * `sqlite3_get_autocommit()`); `false` when not connected. `[Symbol.dispose]`
- * closes the connection (same as `close`), enabling `using` to release it
+ * `sqlite3_get_autocommit()`); `false` when not connected. `begin` / `commit` /
+ * `rollback` are the same `BEGIN` / `COMMIT` / `ROLLBACK` primitives
+ * `transaction` composes internally, exposed directly for a long-lived or
+ * externally-driven transaction that a single synchronous scope cannot
+ * express — `transaction(scope)` remains the right tool whenever the whole
+ * transaction fits in one synchronous scope. `[Symbol.dispose]` closes the
+ * connection (same as `close`), enabling `using` to release it
  * deterministically at the end of a block.
  */
 export interface SQLiteDatabaseInterface {
@@ -118,6 +123,18 @@ export interface SQLiteDatabaseInterface {
 	exec(sql: string): void
 	prepare(sql: string): SQLiteStatementInterface
 	transaction<R>(scope: () => R): R
+	/**
+	 * Open a transaction (`BEGIN`). Throws the native fault — including a
+	 * nested `BEGIN` while one is already open — as a {@link SQLiteError}; a
+	 * caller composing its own transaction alongside others should branch on
+	 * {@link SQLiteDatabaseInterface.transacting} first rather than catch this
+	 * (see the Practices section in `guides/src/sqlite.md`).
+	 */
+	begin(): void
+	/** Commit the currently open transaction (`COMMIT`); throws the native fault as a {@link SQLiteError} when none is open. */
+	commit(): void
+	/** Roll back the currently open transaction (`ROLLBACK`); throws the native fault as a {@link SQLiteError} when none is open. */
+	rollback(): void
 	pragma(name: string, value?: string | number): SQLiteValue | undefined
 	[Symbol.dispose](): void
 }
