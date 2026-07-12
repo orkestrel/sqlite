@@ -19,7 +19,8 @@ npm install @orkestrel/sqlite
 
 ## Status
 
-Pre-release. The public API documented in [`guides/src/sqlite.md`](guides/src/sqlite.md)
+Pre-release. The public API documented in
+[`guides/src/sqlite.md`](https://github.com/orkestrel/sqlite/blob/main/guides/src/sqlite.md)
 is implemented and covered by tests, but the package has not yet reached a
 stable `1.0` release.
 

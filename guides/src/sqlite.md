@@ -57,7 +57,7 @@ db.prepare('SELECT name FROM users WHERE age >= ?').all([18]) // → [{ name: 'A
 | `SQLiteParameters`         | type      | Bind parameters — positional (an array) or named (a record).                                                                                  |
 | `SQLiteRunResult`          | interface | The outcome of a non-query statement (`changes` / `rowid`) — `number` (a count / rowid past 2^53 truncates, acceptable for keys and changes). |
 | `SQLiteErrorCode`          | type      | The machine-readable `SQLiteError` code union.                                                                                                |
-| `SQLiteDatabaseOptions`    | interface | Options for `createSQLiteDatabase` (`path` / `readonly` / `timeout` / `foreignKeys`).                                                         |
+| `SQLiteDatabaseOptions`    | interface | Options for `createSQLiteDatabase` (`path` / `readonly` / `timeout` / `foreignKeys` / `bigints`).                                             |
 | `SQLiteStatementInterface` | interface | The prepared-statement contract.                                                                                                              |
 | `SQLiteDatabaseInterface`  | interface | The database contract.                                                                                                                        |
 
@@ -183,6 +183,11 @@ const writer = createSQLiteDatabase({ path: '/data/app.db', timeout: 2000 })
 
 // Foreign-key enforcement (node:sqlite defaults this to true when omitted):
 const enforced = createSQLiteDatabase({ foreignKeys: true })
+
+// Writes always accept a bigint; a stored integer beyond Number.MAX_SAFE_INTEGER
+// throws on read unless `bigints` is enabled — enabling it returns EVERY integer
+// column as bigint, not just the out-of-range ones:
+const exact = createSQLiteDatabase({ bigints: true })
 ```
 
 ### Disposing with `using`
@@ -231,6 +236,7 @@ try {
 - **Branch on `error.code`** (via `isSQLiteError`) rather than parsing a message — `'CONSTRAINT'` distinguishes a key conflict from any other fault.
 - **Retry `'BUSY'`, not the others** — it is the one retryable code; back off briefly (or raise `timeout`) before retrying the same operation.
 - **Prefer `using`** over a manual `try` / `finally close()` when a database's lifetime matches one block scope.
+- **Enable `bigints` when integers may exceed `Number.MAX_SAFE_INTEGER`** — writes already accept `bigint`, but a read of an out-of-range stored integer throws unless `bigints` is set; note the option applies to every integer column, not selectively.
 
 ## Tests
 

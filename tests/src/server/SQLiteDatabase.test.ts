@@ -92,6 +92,52 @@ describe('SQLiteDatabase — transaction', () => {
 		// The insert of 2 was rolled back; only the pre-transaction row 1 remains.
 		expect(db.prepare('SELECT COUNT(*) AS n FROM t').get()).toEqual({ n: 1 })
 	})
+
+	it('rethrows the original scope error, not a ROLLBACK fault, when the rollback itself fails', () => {
+		const db = createSQLiteDatabase()
+		db.connect()
+		db.exec('CREATE TABLE t (id INTEGER PRIMARY KEY)')
+		const sentinel = new Error('sentinel scope error')
+		expect(() =>
+			db.transaction(() => {
+				db.close() // ROLLBACK will fault: the connection is now closed
+				throw sentinel
+			}),
+		).toThrow(sentinel)
+	})
+})
+
+describe('SQLiteDatabase — bigints', () => {
+	it('throws on read for an out-of-range integer without bigints enabled', () => {
+		const db = createSQLiteDatabase()
+		db.connect()
+		db.exec('CREATE TABLE t (id INTEGER PRIMARY KEY, value INTEGER)')
+		db.prepare('INSERT INTO t VALUES (?, ?)').run([1, 9007199254740993n])
+		expect(sqliteErrorCode(() => db.prepare('SELECT value FROM t WHERE id = ?').get([1]))).toBe(
+			'UNKNOWN',
+		)
+		db.close()
+	})
+
+	it('round-trips an out-of-range integer exactly when bigints is enabled', () => {
+		const db = createSQLiteDatabase({ bigints: true })
+		db.connect()
+		db.exec('CREATE TABLE t (id INTEGER PRIMARY KEY, value INTEGER)')
+		db.prepare('INSERT INTO t VALUES (?, ?)').run([1, 9007199254740993n])
+		expect(db.prepare('SELECT value FROM t WHERE id = ?').get([1])).toEqual({
+			value: 9007199254740993n,
+		})
+		db.close()
+	})
+
+	it('returns every integer column as bigint when bigints is enabled, not only out-of-range ones', () => {
+		const db = createSQLiteDatabase({ bigints: true })
+		db.connect()
+		db.exec('CREATE TABLE t (id INTEGER PRIMARY KEY, value INTEGER)')
+		db.prepare('INSERT INTO t VALUES (?, ?)').run([1, 5])
+		expect(db.prepare('SELECT value FROM t WHERE id = ?').get([1])).toEqual({ value: 5n })
+		db.close()
+	})
 })
 
 describe('SQLiteDatabase — pragma', () => {

@@ -18,14 +18,17 @@ import { SQLiteStatement } from './SQLiteStatement.js'
  * private gate that throws a `CLOSED` `SQLiteError` before `connect` or after
  * `close`. `exec` runs result-less SQL; `prepare` compiles a `SQLiteStatement`;
  * `transaction` wraps a scope in `BEGIN` / `COMMIT`, rolling back on a throw;
- * `pragma` reads (or sets then reads) one PRAGMA value. A native fault surfaces as
- * a `SQLiteError` mapped at the boundary.
+ * `pragma` reads (or sets then reads) one PRAGMA value — `name` is trusted
+ * internal use only, never untrusted input, since pragma names cannot be bound
+ * as parameters. A native fault surfaces as a `SQLiteError` mapped at the
+ * boundary.
  */
 export class SQLiteDatabase implements SQLiteDatabaseInterface {
 	readonly #path: string
 	readonly #readonly: boolean | undefined
 	readonly #timeout: number | undefined
 	readonly #foreignKeys: boolean | undefined
+	readonly #bigints: boolean | undefined
 	#database: DatabaseSync | undefined
 
 	constructor(options: SQLiteDatabaseOptions) {
@@ -33,6 +36,7 @@ export class SQLiteDatabase implements SQLiteDatabaseInterface {
 		this.#readonly = options.readonly
 		this.#timeout = options.timeout
 		this.#foreignKeys = options.foreignKeys
+		this.#bigints = options.bigints
 	}
 
 	get path(): string {
@@ -49,6 +53,7 @@ export class SQLiteDatabase implements SQLiteDatabaseInterface {
 				readOnly: this.#readonly,
 				timeout: this.#timeout,
 				enableForeignKeyConstraints: this.#foreignKeys,
+				readBigInts: this.#bigints,
 			})
 		}
 	}
@@ -86,7 +91,13 @@ export class SQLiteDatabase implements SQLiteDatabaseInterface {
 			this.exec('COMMIT')
 			return result
 		} catch (error) {
-			this.exec('ROLLBACK')
+			// A ROLLBACK fault (e.g. the database was closed by the scope) must never
+			// mask the scope's own error — the caller needs to see why it failed.
+			try {
+				this.exec('ROLLBACK')
+			} catch {
+				// swallowed — the original `error` is what the caller needs to see
+			}
 			throw error
 		}
 	}

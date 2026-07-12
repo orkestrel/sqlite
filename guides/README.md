@@ -23,11 +23,6 @@ directory (AGENTS §22).
 anything sourced in this repo; it is kept here so a reader of this package can see
 the primitives it is built from without leaving this guide set.
 
-[`src/emitter.md`](src/emitter.md) and [`src/abort.md`](src/abort.md) are
-byte-identical mirrors of the guides for `@orkestrel/emitter` and
-`@orkestrel/abort` — kept here for reference alongside the other `@orkestrel`
-line packages, not because this package currently depends on them at runtime.
-
 [`src/guide.md`](src/guide.md) is a byte-identical mirror of the guide for
 `@orkestrel/guide` — the devDependency powering this repo's guides-parity test
 suite (`tests/guides/src/parity.test.ts`). It documents **that package's**

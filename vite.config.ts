@@ -29,9 +29,9 @@ export const srcServer = (config?: UserConfig): UserConfig =>
 					fileName: () => 'index.cjs',
 				},
 				outDir: 'dist/src/server',
-				target: 'node22',
+				target: 'node24',
 				rolldownOptions: {
-					external: (id: string) => id.startsWith('node:'),
+					external: (id: string) => id.startsWith('node:') || id.startsWith('@orkestrel/'),
 				},
 			},
 			test: {

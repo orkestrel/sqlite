@@ -56,13 +56,19 @@ export type SQLiteErrorCode = 'CLOSED' | 'CONSTRAINT' | 'BUSY' | 'UNKNOWN'
  * failing with a `BUSY` {@link SQLiteError}; defaults to `0` (fail
  * immediately) when omitted. `foreignKeys` enables foreign-key constraint
  * enforcement (native `enableForeignKeyConstraints`); `node:sqlite` defaults
- * this to `true` when omitted.
+ * this to `true` when omitted. `bigints` reads `INTEGER` columns back as
+ * `bigint` (native `readBigInts`) — writes already accept `bigint` regardless
+ * of this option, so a stored integer beyond `Number.MAX_SAFE_INTEGER` throws
+ * on read unless `bigints` is enabled; enabling it returns EVERY integer
+ * column as `bigint`, not just out-of-range ones, closing that read/write
+ * asymmetry at the cost of `bigint` values for ordinary small integers too.
  */
 export interface SQLiteDatabaseOptions {
 	readonly path?: string
 	readonly readonly?: boolean
 	readonly timeout?: number
 	readonly foreignKeys?: boolean
+	readonly bigints?: boolean
 }
 
 /**
@@ -95,9 +101,11 @@ export interface SQLiteStatementInterface {
  * {@link SQLiteError} before `connect` or after `close`. `exec` runs SQL with no
  * results (DDL, pragmas); `prepare` compiles a {@link SQLiteStatementInterface};
  * `transaction` runs a scope between `BEGIN` and `COMMIT`, rolling back on a
- * throw; `pragma` reads (or sets then reads) a single PRAGMA value.
- * `[Symbol.dispose]` closes the connection (same as `close`), enabling `using`
- * to release it deterministically at the end of a block.
+ * throw; `pragma` reads (or sets then reads) a single PRAGMA value — `name` is
+ * trusted internal use only, never untrusted input, since pragma names cannot
+ * be bound as parameters. `[Symbol.dispose]` closes the connection (same as
+ * `close`), enabling `using` to release it deterministically at the end of a
+ * block.
  */
 export interface SQLiteDatabaseInterface {
 	readonly path: string
