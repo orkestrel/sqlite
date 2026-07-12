@@ -44,6 +44,49 @@ describe('SQLiteDatabase — lifecycle', () => {
 	})
 })
 
+describe('SQLiteDatabase — transacting', () => {
+	it('is false when disconnected', () => {
+		const db = createSQLiteDatabase()
+		expect(db.transacting).toBe(false)
+	})
+
+	it('is false when idle-connected', () => {
+		const db = createSQLiteDatabase()
+		db.connect()
+		expect(db.transacting).toBe(false)
+		db.close()
+	})
+
+	it('is true inside a transaction scope', () => {
+		const db = createSQLiteDatabase()
+		db.connect()
+		db.exec('CREATE TABLE t (id INTEGER PRIMARY KEY)')
+		db.transaction(() => {
+			expect(db.transacting).toBe(true)
+		})
+		expect(db.transacting).toBe(false)
+		db.close()
+	})
+
+	it('is true between a manual BEGIN and COMMIT, and false after commit and rollback', () => {
+		const db = createSQLiteDatabase()
+		db.connect()
+		db.exec('CREATE TABLE t (id INTEGER PRIMARY KEY)')
+
+		db.exec('BEGIN')
+		expect(db.transacting).toBe(true)
+		db.exec('COMMIT')
+		expect(db.transacting).toBe(false)
+
+		db.exec('BEGIN')
+		expect(db.transacting).toBe(true)
+		db.exec('ROLLBACK')
+		expect(db.transacting).toBe(false)
+
+		db.close()
+	})
+})
+
 describe('SQLiteDatabase — exec and prepare', () => {
 	it('execs DDL and round-trips a row through a prepared statement', () => {
 		const db = createSQLiteDatabase()

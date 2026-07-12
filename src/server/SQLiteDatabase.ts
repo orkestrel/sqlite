@@ -20,8 +20,9 @@ import { SQLiteStatement } from './SQLiteStatement.js'
  * `transaction` wraps a scope in `BEGIN` / `COMMIT`, rolling back on a throw;
  * `pragma` reads (or sets then reads) one PRAGMA value — `name` is trusted
  * internal use only, never untrusted input, since pragma names cannot be bound
- * as parameters. A native fault surfaces as a `SQLiteError` mapped at the
- * boundary.
+ * as parameters. `transacting` reports whether a transaction is currently open
+ * (node:sqlite's `isTransaction`), `false` when not connected. A native fault
+ * surfaces as a `SQLiteError` mapped at the boundary.
  */
 export class SQLiteDatabase implements SQLiteDatabaseInterface {
 	readonly #path: string
@@ -45,6 +46,10 @@ export class SQLiteDatabase implements SQLiteDatabaseInterface {
 
 	get connected(): boolean {
 		return this.#database !== undefined
+	}
+
+	get transacting(): boolean {
+		return this.#database?.isTransaction ?? false
 	}
 
 	connect(): void {

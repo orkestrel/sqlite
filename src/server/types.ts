@@ -103,13 +103,16 @@ export interface SQLiteStatementInterface {
  * `transaction` runs a scope between `BEGIN` and `COMMIT`, rolling back on a
  * throw; `pragma` reads (or sets then reads) a single PRAGMA value — `name` is
  * trusted internal use only, never untrusted input, since pragma names cannot
- * be bound as parameters. `[Symbol.dispose]` closes the connection (same as
- * `close`), enabling `using` to release it deterministically at the end of a
- * block.
+ * be bound as parameters. `transacting` reports whether a transaction is
+ * currently open on this connection — node:sqlite's `isTransaction` (wraps
+ * `sqlite3_get_autocommit()`); `false` when not connected. `[Symbol.dispose]`
+ * closes the connection (same as `close`), enabling `using` to release it
+ * deterministically at the end of a block.
  */
 export interface SQLiteDatabaseInterface {
 	readonly path: string
 	readonly connected: boolean
+	readonly transacting: boolean
 	connect(): void
 	close(): void
 	exec(sql: string): void

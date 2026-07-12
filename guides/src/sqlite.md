@@ -65,7 +65,9 @@ Row values arrive as the native `SQLiteValue` types and are handed back as-is �
 
 ## Methods
 
-The public methods of each behavioral interface — one table per type, keyed by its backticked name, every call-signature member listed (its `readonly` data members, e.g. `path` / `connected`, stay in the Surface rows above). Each class implements its interface exactly — no extra public method — so this doubles as the per-instance method surface (AGENTS §22). Every one of these calls is **synchronous** and returns a plain value, never a `Promise`.
+The public methods of each behavioral interface — one table per type, keyed by its backticked name, every call-signature member listed (its `readonly` data members, e.g. `path` / `connected` / `transacting`, stay in the Surface rows above). Each class implements its interface exactly — no extra public method — so this doubles as the per-instance method surface (AGENTS §22). Every one of these calls is **synchronous** and returns a plain value, never a `Promise`.
+
+`SQLiteDatabaseInterface` also exposes `readonly transacting: boolean` — whether a transaction is currently open on this connection (node:sqlite's `isTransaction`, wrapping `sqlite3_get_autocommit()`), `false` when not connected. `transaction(scope)` sets it for the scope's duration; a manual `exec('BEGIN')` / `exec('COMMIT')` / `exec('ROLLBACK')` sets and clears it identically, since `transaction` is itself built on those same statements.
 
 `SQLiteDatabaseInterface` also declares `[Symbol.dispose](): void` — a symbol-keyed member, so it is documented here in prose rather than as a `Methods` table row (the guide-parity tooling keys method rows by identifier name). It closes the connection exactly like `close`, letting `using db = createSQLiteDatabase(...)` release it deterministically at the end of a block.
 
@@ -100,6 +102,7 @@ These invariants hold across `src/server/sqlite` ↔ `sqlite.md`:
 5. **Native faults become `SQLiteError`.** Every native `node:sqlite` throw is mapped at the boundary to a `SQLiteError` carrying a machine-readable `code` — a constraint violation (a UNIQUE / PRIMARY KEY conflict) is detected as `'CONSTRAINT'`, anything else is `'UNKNOWN'`. Narrow a caught value with `isSQLiteError`.
 6. **`CLOSED` before connect.** The database connects lazily; an operation before `connect` (or after `close`) throws a `CLOSED` `SQLiteError`. `connect` is idempotent.
 7. **`BUSY` on lock contention.** A write that finds the database locked by another connection retries for `timeout` milliseconds (default `0` — fail immediately), then throws a `BUSY` `SQLiteError` — retryable, unlike the other codes.
+8. **`transacting` mirrors native autocommit state.** `db.transacting` is `true` exactly while a transaction is open (inside `transaction(scope)`, or between a manual `BEGIN` and its `COMMIT` / `ROLLBACK`) and `false` otherwise, including when disconnected.
 
 ## Patterns
 
@@ -237,6 +240,7 @@ try {
 - **Retry `'BUSY'`, not the others** — it is the one retryable code; back off briefly (or raise `timeout`) before retrying the same operation.
 - **Prefer `using`** over a manual `try` / `finally close()` when a database's lifetime matches one block scope.
 - **Enable `bigints` when integers may exceed `Number.MAX_SAFE_INTEGER`** — writes already accept `bigint`, but a read of an out-of-range stored integer throws unless `bigints` is set; note the option applies to every integer column, not selectively.
+- **Branch on `transacting` instead of catching a nested-`BEGIN` error** — a consumer composing its own `BEGIN` (e.g. a migration step joining an enclosing transaction) checks `db.transacting` first and skips its own `BEGIN` / `COMMIT` when one is already open, rather than issuing `BEGIN` unconditionally and handling the "cannot start a transaction within a transaction" fault.
 
 ## Tests
 
