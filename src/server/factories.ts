@@ -15,7 +15,7 @@ import { SQLiteDatabase } from './SQLiteDatabase.js'
  *
  * @example
  * ```ts
- * import { createSQLiteDatabase } from '@src/server'
+ * import { createSQLiteDatabase } from '@orkestrel/sqlite'
  *
  * const db = createSQLiteDatabase({ path: ':memory:' })
  * db.connect()
