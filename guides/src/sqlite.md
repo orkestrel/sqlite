@@ -27,10 +27,10 @@ db.prepare('SELECT name FROM users WHERE age >= ?').all([18]) // → [{ name: 'A
 
 ### Entities
 
-| API               | Kind  | Summary                                                                             |
-| ----------------- | ----- | ----------------------------------------------------------------------------------- |
+| API               | Kind  | Summary                                                                                                               |
+| ----------------- | ----- | --------------------------------------------------------------------------------------------------------------------- |
 | `SQLiteDatabase`  | class | The database — `connect` / `close` / `exec` / `prepare` / `transaction` / `begin` / `commit` / `rollback` / `pragma`. |
-| `SQLiteStatement` | class | A prepared statement — `run` / `get` / `all` / `iterate`.                           |
+| `SQLiteStatement` | class | A prepared statement — `run` / `get` / `all` / `iterate`.                                                             |
 
 ### Constants
 
