@@ -25,8 +25,8 @@ export const srcServer = (config?: UserConfig): UserConfig =>
 				minify: false,
 				lib: {
 					entry: resolveWorkspacePath('src/server/index.ts'),
-					formats: ['cjs'],
-					fileName: () => 'index.cjs',
+					formats: ['es', 'cjs'],
+					fileName: (format: string) => (format === 'es' ? 'index.js' : 'index.cjs'),
 				},
 				outDir: 'dist/src/server',
 				target: 'node24',
