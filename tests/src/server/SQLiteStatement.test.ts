@@ -70,6 +70,15 @@ describe('SQLiteStatement — get / all / iterate', () => {
 		for (const row of iterator) ids.push(row)
 		expect(ids).toEqual([{ id: 'u1' }, { id: 'u2' }, { id: 'u3' }])
 	})
+
+	it('maps a mid-stream native fault (a later row) to a SQLiteError instead of throwing raw', () => {
+		db.exec('CREATE TABLE t (id INTEGER PRIMARY KEY, value INTEGER)')
+		db.prepare('INSERT INTO t VALUES (?, ?)').run([1, 1])
+		db.prepare('INSERT INTO t VALUES (?, ?)').run([2, 9007199254740993n])
+		const iterator = db.prepare('SELECT value FROM t ORDER BY id').iterate()
+		expect(iterator.next().value).toEqual({ value: 1 })
+		expect(sqliteErrorCode(() => iterator.next())).toBe('UNKNOWN')
+	})
 })
 
 describe('SQLiteStatement — constraints', () => {
@@ -78,6 +87,24 @@ describe('SQLiteStatement — constraints', () => {
 		expect(
 			sqliteErrorCode(() => db.prepare('INSERT INTO users VALUES (?, ?, ?)').run(['u1', 'Bo', 1])),
 		).toBe('CONSTRAINT')
+	})
+})
+
+describe('SQLiteStatement — closed connection', () => {
+	it('gates run / get / all / iterate with CLOSED once the owning connection is closed', () => {
+		const statement = db.prepare('SELECT id FROM users')
+		db.close()
+		expect(sqliteErrorCode(() => statement.run())).toBe('CLOSED')
+		expect(sqliteErrorCode(() => statement.get())).toBe('CLOSED')
+		expect(sqliteErrorCode(() => statement.all())).toBe('CLOSED')
+		expect(sqliteErrorCode(() => statement.iterate())).toBe('CLOSED')
+	})
+
+	it('stays CLOSED for a statement prepared on the old connection after reconnect', () => {
+		const statement = db.prepare('SELECT id FROM users')
+		db.close()
+		db.connect()
+		expect(sqliteErrorCode(() => statement.get())).toBe('CLOSED')
 	})
 })
 

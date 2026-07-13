@@ -1,6 +1,6 @@
 {
 	"name": "@orkestrel/sqlite",
-	"version": "0.0.2",
+	"version": "0.0.3",
 	"description": "A typed, synchronous SQLite wrapper for the @orkestrel line — prepared statements over node:sqlite. Part of the @orkestrel line.",
 	"keywords": [
 		"database",

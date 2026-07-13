@@ -136,6 +136,28 @@ describe('SQLiteDatabase — transaction', () => {
 		expect(db.prepare('SELECT COUNT(*) AS n FROM t').get()).toEqual({ n: 1 })
 	})
 
+	it('rolls back and throws UNKNOWN when the scope returns a thenable (an async scope)', async () => {
+		const db = createSQLiteDatabase()
+		db.connect()
+		db.exec('CREATE TABLE t (id INTEGER PRIMARY KEY)')
+		expect(() =>
+			db.transaction(async () => {
+				db.prepare('INSERT INTO t VALUES (?)').run([1])
+				await Promise.resolve()
+			}),
+		).toThrow(SQLiteError)
+		expect(
+			sqliteErrorCode(() =>
+				db.transaction(async () => {
+					await Promise.resolve()
+				}),
+			),
+		).toBe('UNKNOWN')
+		expect(db.transacting).toBe(false)
+		expect(db.prepare('SELECT COUNT(*) AS n FROM t').get()).toEqual({ n: 0 })
+		db.close()
+	})
+
 	it('rethrows the original scope error, not a ROLLBACK fault, when the rollback itself fails', () => {
 		const db = createSQLiteDatabase()
 		db.connect()

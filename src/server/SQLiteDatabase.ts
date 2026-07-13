@@ -5,6 +5,7 @@ import type {
 	SQLiteStatementInterface,
 	SQLiteValue,
 } from './types.js'
+import { isPromiseLike } from '@orkestrel/contract'
 import { SQLiteError } from './errors.js'
 import { wrapError } from './helpers.js'
 import { SQLiteStatement } from './SQLiteStatement.js'
@@ -85,7 +86,12 @@ export class SQLiteDatabase implements SQLiteDatabaseInterface {
 
 	prepare(sql: string): SQLiteStatementInterface {
 		try {
-			return new SQLiteStatement(this.#require().prepare(sql))
+			const database = this.#require()
+			// Capture this specific connection instance — a later `close()` clears
+			// `#database`, and a subsequent `connect()` creates a NEW instance, so
+			// identity comparison (not just "is a connection open") keeps a statement
+			// prepared on the OLD connection permanently CLOSED after reconnect.
+			return new SQLiteStatement(database.prepare(sql), () => this.#database !== database)
 		} catch (error) {
 			throw wrapError(error)
 		}
@@ -93,10 +99,9 @@ export class SQLiteDatabase implements SQLiteDatabaseInterface {
 
 	transaction<R>(scope: () => R): R {
 		this.begin()
+		let result: R
 		try {
-			const result = scope()
-			this.commit()
-			return result
+			result = scope()
 		} catch (error) {
 			// A ROLLBACK fault (e.g. the database was closed by the scope) must never
 			// mask the scope's own error — the caller needs to see why it failed.
@@ -107,6 +112,22 @@ export class SQLiteDatabase implements SQLiteDatabaseInterface {
 			}
 			throw error
 		}
+		if (isPromiseLike(result)) {
+			// An async scope returns before its awaited work runs, so committing here
+			// would commit prematurely — roll back and reject instead of silently
+			// racing the caller's still-pending work.
+			try {
+				this.rollback()
+			} catch {
+				// swallowed — the guard error below is what the caller needs to see
+			}
+			throw new SQLiteError(
+				'UNKNOWN',
+				'transaction(scope) requires a synchronous scope — an async or Promise-returning scope cannot commit or roll back before its awaited work runs; use begin() / commit() / rollback() directly for a transaction that spans async caller code',
+			)
+		}
+		this.commit()
+		return result
 	}
 
 	begin(): void {

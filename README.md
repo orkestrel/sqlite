@@ -1,9 +1,13 @@
 # @orkestrel/sqlite
 
-A typed, synchronous SQLite wrapper for the `@orkestrel` line — a thin,
-zero-dependency skin over Node's built-in `node:sqlite` (`DatabaseSync` /
-`StatementSync`) giving prepared statements, transactions, and pragmas. Built
-on `@orkestrel/contract` for its boundary narrowing.
+A typed, synchronous SQLite wrapper for the `@orkestrel` line — a thin skin
+over Node's built-in `node:sqlite` (`DatabaseSync` / `StatementSync`) giving
+prepared statements, transactions, and pragmas, with a single runtime
+dependency: `@orkestrel/contract`, used for its boundary narrowing.
+
+`node:sqlite` is experimental on current Node versions — importing this
+package emits an `ExperimentalWarning` at runtime until Node stabilizes the
+module.
 
 ## Install
 
