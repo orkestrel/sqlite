@@ -37,7 +37,7 @@ export class SQLiteError extends Error {
 		super(message)
 		this.name = 'SQLiteError'
 		this.code = code
-		this.context = context
+		if (context !== undefined) this.context = context
 	}
 }
 
