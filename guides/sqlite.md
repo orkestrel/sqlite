@@ -1,6 +1,6 @@
 # SQLite
 
-> A lean, typed, **synchronous** wrapper over Node's built-in [`node:sqlite`](https://nodejs.org/api/sqlite.html) — zero npm dependencies, just a thin typed skin on `DatabaseSync` / `StatementSync`. It surfaces exactly SQLite's native power — prepared statements, transactions, and pragmas — and deliberately no query / filter / sort / aggregate builder: it is the raw native handle, not an ORM, so a caller reaching for typed querying builds that layer on top. Source: [`src/server`](../../src/server). Surfaced through the `@src/server` barrel.
+> A lean, typed, **synchronous** wrapper over Node's built-in [`node:sqlite`](https://nodejs.org/api/sqlite.html) — zero npm dependencies, just a thin typed skin on `DatabaseSync` / `StatementSync`. It surfaces exactly SQLite's native power — prepared statements, transactions, and pragmas — and deliberately no query / filter / sort / aggregate builder: it is the raw native handle, not an ORM, so a caller reaching for typed querying builds that layer on top. Source: [`src/server`](../src/server). Surfaced through the `@src/server` barrel.
 
 ## Surface
 
@@ -271,13 +271,13 @@ try {
 
 ## Tests
 
-- [`tests/guides.test.ts`](../../tests/guides.test.ts) — the `## Surface` ↔ `src/server` bijection and the `## Methods` ↔ interface/class method parity.
-- [`tests/src/server/SQLiteDatabase.test.ts`](../../tests/src/server/SQLiteDatabase.test.ts) — the database in a real `:memory:` SQLite: connect / close lifecycle, the `CLOSED` gate, exec DDL, prepare round-trip, transaction commit and rollback, pragma get + set, and the production options — `readonly` rejecting a write, `foreignKeys` enforcing a real FK violation, `timeout` surfacing `BUSY` from a genuinely locked second connection, and `[Symbol.dispose]` closing inside a `using` block.
-- [`tests/src/server/SQLiteStatement.test.ts`](../../tests/src/server/SQLiteStatement.test.ts) — prepared statements: `run`'s result, positional and named binding, `get` / `all` / `iterate`, and a `CONSTRAINT` violation.
-- [`tests/src/server/helpers.test.ts`](../../tests/src/server/helpers.test.ts) — the wrapper's boundary helpers as pure units: `wrapError` mapping a thrown value to a typed `SQLiteError` (real constraint fault → `CONSTRAINT`, real locked-database fault → `BUSY`, non-error → `UNKNOWN`, pass-through) and `bindParameters` normalizing parameters to the native binding shape (array → positional, record → named).
-- [`tests/src/server/factories.test.ts`](../../tests/src/server/factories.test.ts) — `createSQLiteDatabase` returns a working `SQLiteDatabaseInterface` and defaults its path to `:memory:`.
+- [`tests/guides.test.ts`](../tests/guides.test.ts) — the `## Surface` ↔ `src/server` bijection and the `## Methods` ↔ interface/class method parity.
+- [`tests/src/server/SQLiteDatabase.test.ts`](../tests/src/server/SQLiteDatabase.test.ts) — the database in a real `:memory:` SQLite: connect / close lifecycle, the `CLOSED` gate, exec DDL, prepare round-trip, transaction commit and rollback, pragma get + set, and the production options — `readonly` rejecting a write, `foreignKeys` enforcing a real FK violation, `timeout` surfacing `BUSY` from a genuinely locked second connection, and `[Symbol.dispose]` closing inside a `using` block.
+- [`tests/src/server/SQLiteStatement.test.ts`](../tests/src/server/SQLiteStatement.test.ts) — prepared statements: `run`'s result, positional and named binding, `get` / `all` / `iterate`, and a `CONSTRAINT` violation.
+- [`tests/src/server/helpers.test.ts`](../tests/src/server/helpers.test.ts) — the wrapper's boundary helpers as pure units: `wrapError` mapping a thrown value to a typed `SQLiteError` (real constraint fault → `CONSTRAINT`, real locked-database fault → `BUSY`, non-error → `UNKNOWN`, pass-through) and `bindParameters` normalizing parameters to the native binding shape (array → positional, record → named).
+- [`tests/src/server/factories.test.ts`](../tests/src/server/factories.test.ts) — `createSQLiteDatabase` returns a working `SQLiteDatabaseInterface` and defaults its path to `:memory:`.
 
 ## See also
 
-- [`AGENTS.md`](../../AGENTS.md) — §14 untyped-boundary narrowing, §22 documentation-as-contracts.
-- [`README.md`](../README.md) — the guides index.
+- [`AGENTS.md`](../AGENTS.md) — §14 untyped-boundary narrowing, §22 documentation-as-contracts.
+- [`README.md`](README.md) — the guides index.
