@@ -10,7 +10,7 @@ import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { captureError } from '../../setup.js'
+import { captureError } from '@orkestrel/test'
 
 // The SQLite wrapper's boundary helpers as pure units (no mocks, AGENTS §16):
 // `wrapError` maps a thrown value to a typed `SQLiteError` (a real `node:sqlite`
