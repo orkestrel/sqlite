@@ -1,6 +1,5 @@
 import { createSQLiteDatabase, SQLiteError } from '@src/server'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { createScratch } from '@orkestrel/test/server'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { sqliteErrorCode } from '../../setupServer.js'
@@ -267,11 +266,11 @@ describe('SQLiteDatabase — pragma', () => {
 })
 
 describe('SQLiteDatabase — production options', () => {
-	const dir = mkdtempSync(join(tmpdir(), 'sqlite-database-test-'))
-	afterAll(() => rmSync(dir, { recursive: true, force: true }))
+	const scratch = createScratch({ prefix: 'sqlite-database-test-' })
+	afterAll(() => scratch.destroy())
 
 	it('opens read-only and rejects a write', () => {
-		const path = join(dir, 'readonly.db')
+		const path = join(scratch.path, 'readonly.db')
 		const seed = createSQLiteDatabase({ path })
 		seed.connect()
 		seed.exec('CREATE TABLE t (id INTEGER)')
@@ -293,7 +292,7 @@ describe('SQLiteDatabase — production options', () => {
 	})
 
 	it('threads a busy timeout and surfaces BUSY from a locked second connection', () => {
-		const path = join(dir, 'busy.db')
+		const path = join(scratch.path, 'busy.db')
 		const seed = createSQLiteDatabase({ path })
 		seed.connect()
 		seed.exec('CREATE TABLE t (id INTEGER)')
