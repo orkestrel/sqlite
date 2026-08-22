@@ -1,6 +1,6 @@
 {
 	"name": "@orkestrel/sqlite",
-	"version": "0.0.8",
+	"version": "0.0.9",
 	"description": "A typed, synchronous SQLite wrapper for the @orkestrel line — prepared statements over node:sqlite. Part of the @orkestrel line.",
 	"keywords": [
 		"database",
@@ -65,7 +65,7 @@
 		"prepublishOnly": "npm run format:check && npm run lint:check && npm run check && npm run build && npm test"
 	},
 	"dependencies": {
-		"@orkestrel/contract": "^0.0.12"
+		"@orkestrel/contract": "^0.0.13"
 	},
 	"devDependencies": {
 		"@microsoft/api-extractor": "^7.59.0",
