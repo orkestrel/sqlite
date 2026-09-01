@@ -28,6 +28,21 @@ export type SQLiteRow = Record<string, SQLiteValue>
  */
 export type SQLiteParameters = readonly SQLiteValue[] | Readonly<Record<string, SQLiteValue>>
 
+/**
+ * The normalized binding shape a native `StatementSync` call expects — what
+ * {@link SQLiteParameters} become on the way into `node:sqlite`.
+ *
+ * @remarks
+ * `positional` carries an array spread into the native call against `?`
+ * placeholders; `named` carries a record passed as a single leading object bound
+ * to bare `:name` placeholders. The discriminant is the present member, so a
+ * consumer branches with `'named' in binding` and stays typed against the native
+ * overloads without an assertion.
+ */
+export type SQLiteBinding =
+	| { readonly positional: readonly SQLiteValue[] }
+	| { readonly named: Readonly<Record<string, SQLiteValue>> }
+
 /** The outcome of a non-query statement (`INSERT` / `UPDATE` / `DELETE` / DDL). */
 export interface SQLiteRunResult {
 	readonly changes: number
@@ -128,7 +143,7 @@ export interface SQLiteDatabaseInterface {
 	 * nested `BEGIN` while one is already open — as a {@link SQLiteError}; a
 	 * caller composing its own transaction alongside others should branch on
 	 * {@link SQLiteDatabaseInterface.transacting} first rather than catch this
-	 * (see the Practices section in `guides/src/sqlite.md`).
+	 * (see the Practices section in `guides/sqlite.md`).
 	 */
 	begin(): void
 	/** Commit the currently open transaction (`COMMIT`); throws the native fault as a {@link SQLiteError} when none is open. */

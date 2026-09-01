@@ -1,4 +1,4 @@
-import type { SQLiteParameters, SQLiteValue } from './types.js'
+import type { SQLiteBinding, SQLiteParameters, SQLiteValue } from './types.js'
 import { isArray, isObject } from '@orkestrel/contract'
 import { SQLITE_BUSY, SQLITE_CONSTRAINT } from './constants.js'
 import { SQLiteError } from './errors.js'
@@ -54,13 +54,9 @@ export function wrapError(error: unknown): SQLiteError {
  * `SQLiteStatement` dispatch typed against the native overloads without `as`.
  *
  * @param parameters - The wrapper parameters, or `undefined` for none
- * @returns `{ positional }` for an array (empty when omitted) or `{ named }` for a record
+ * @returns The {@link SQLiteBinding} — `{ positional }` for an array (empty when omitted) or `{ named }` for a record
  */
-export function bindParameters(
-	parameters?: SQLiteParameters,
-):
-	| { readonly positional: readonly SQLiteValue[] }
-	| { readonly named: Readonly<Record<string, SQLiteValue>> } {
+export function bindParameters(parameters?: SQLiteParameters): SQLiteBinding {
 	if (parameters === undefined) return { positional: [] }
 	if (isArray<SQLiteValue>(parameters)) return { positional: parameters }
 	return { named: parameters }

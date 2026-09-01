@@ -55,6 +55,7 @@ db.prepare('SELECT name FROM users WHERE age >= ?').all([18]) // → [{ name: 'A
 | `SQLiteValue`              | type      | A value SQLite stores and returns natively (`null` / number / bigint / string / `Uint8Array`).                                                |
 | `SQLiteRow`                | type      | A result row — a record of column name to `SQLiteValue`.                                                                                      |
 | `SQLiteParameters`         | type      | Bind parameters — positional (an array) or named (a record).                                                                                  |
+| `SQLiteBinding`            | type      | The normalized binding shape a native call expects — `{ positional }` or `{ named }`.                                                         |
 | `SQLiteRunResult`          | interface | The outcome of a non-query statement (`changes` / `rowid`) — `number` (a count / rowid past 2^53 truncates, acceptable for keys and changes). |
 | `SQLiteErrorCode`          | type      | The machine-readable `SQLiteError` code union.                                                                                                |
 | `SQLiteDatabaseOptions`    | interface | Options for `createSQLiteDatabase` (`path` / `readonly` / `timeout` / `foreignKeys` / `bigints`).                                             |
