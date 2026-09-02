@@ -17,7 +17,7 @@ npm install @orkestrel/sqlite
 
 ## Requirements
 
-- Node.js >= 24
+- Node.js >= 22.12
 - `node:sqlite` (Node's built-in SQLite module)
 - Server-only — no CommonJS/browser split, single Node-native surface
 
