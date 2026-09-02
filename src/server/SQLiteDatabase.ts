@@ -17,7 +17,7 @@ import { SQLiteStatement } from './SQLiteStatement.js'
  * Created by `createSQLiteDatabase`. It connects lazily (`connect` opens the
  * underlying `DatabaseSync`, idempotent) and every operation routes through a
  * private gate that throws a `CLOSED` `SQLiteError` before `connect` or after
- * `close`. `exec` runs result-less SQL; `prepare` compiles a `SQLiteStatement`;
+ * `close`. `execute` runs result-less SQL; `prepare` compiles a `SQLiteStatement`;
  * `transaction` wraps a scope in `BEGIN` / `COMMIT`, rolling back on a throw;
  * `begin` / `commit` / `rollback` expose those same primitives directly for a
  * long-lived or externally-driven transaction; `pragma` reads (or sets then
@@ -76,7 +76,7 @@ export class SQLiteDatabase implements SQLiteDatabaseInterface {
 		this.close()
 	}
 
-	exec(sql: string): void {
+	execute(sql: string): void {
 		try {
 			this.#require().exec(sql)
 		} catch (error) {
@@ -131,21 +131,21 @@ export class SQLiteDatabase implements SQLiteDatabaseInterface {
 	}
 
 	begin(): void {
-		this.exec('BEGIN')
+		this.execute('BEGIN')
 	}
 
 	commit(): void {
-		this.exec('COMMIT')
+		this.execute('COMMIT')
 	}
 
 	rollback(): void {
-		this.exec('ROLLBACK')
+		this.execute('ROLLBACK')
 	}
 
 	// Pragmas cannot use bind parameters, so the value is interpolated — safe for
 	// the trusted internal names this layer is called with.
 	pragma(name: string, value?: string | number): SQLiteValue | undefined {
-		if (value !== undefined) this.exec('PRAGMA ' + name + ' = ' + value)
+		if (value !== undefined) this.execute('PRAGMA ' + name + ' = ' + value)
 		const row = this.prepare('PRAGMA ' + name).get()
 		return row ? Object.values(row)[0] : undefined
 	}

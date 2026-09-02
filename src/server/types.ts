@@ -70,13 +70,14 @@ export type SQLiteErrorCode = 'CLOSED' | 'CONSTRAINT' | 'BUSY' | 'UNKNOWN'
  * (native `timeout`) — how long SQLite retries a locked database before
  * failing with a `BUSY` {@link SQLiteError}; defaults to `0` (fail
  * immediately) when omitted. `foreignKeys` enables foreign-key constraint
- * enforcement (native `enableForeignKeyConstraints`); `node:sqlite` defaults
- * this to `true` when omitted. `bigints` reads `INTEGER` columns back as
- * `bigint` (native `readBigInts`) — writes already accept `bigint` regardless
- * of this option, so a stored integer beyond `Number.MAX_SAFE_INTEGER` throws
- * on read unless `bigints` is enabled; enabling it returns EVERY integer
- * column as `bigint`, not just out-of-range ones, closing that read/write
- * asymmetry at the cost of `bigint` values for ordinary small integers too.
+ * enforcement (native `enableForeignKeyConstraints`) and mirrors SQLite's
+ * `PRAGMA foreign_keys` statement; `node:sqlite` defaults this to `true` when
+ * omitted. `bigints` reads `INTEGER` columns back as `bigint` (native
+ * `readBigInts`) — writes already accept `bigint` regardless of this option,
+ * so a stored integer beyond `Number.MAX_SAFE_INTEGER` throws on read unless
+ * `bigints` is enabled; enabling it returns EVERY integer column as `bigint`,
+ * not just out-of-range ones, closing that read/write asymmetry at the cost of
+ * `bigint` values for ordinary small integers too.
  */
 export interface SQLiteDatabaseOptions {
 	readonly path?: string
@@ -113,8 +114,8 @@ export interface SQLiteStatementInterface {
  * @remarks
  * Connects lazily — `connect` opens the underlying `DatabaseSync` (idempotent),
  * and every operation requires an open connection, throwing a `CLOSED`
- * {@link SQLiteError} before `connect` or after `close`. `exec` runs SQL with no
- * results (DDL, pragmas); `prepare` compiles a {@link SQLiteStatementInterface};
+ * {@link SQLiteError} before `connect` or after `close`. `execute` runs SQL with
+ * no results (DDL, pragmas); `prepare` compiles a {@link SQLiteStatementInterface};
  * `transaction` runs a scope between `BEGIN` and `COMMIT`, rolling back on a
  * throw; `pragma` reads (or sets then reads) a single PRAGMA value — `name` is
  * trusted internal use only, never untrusted input, since pragma names cannot
@@ -135,7 +136,7 @@ export interface SQLiteDatabaseInterface {
 	readonly transacting: boolean
 	connect(): void
 	close(): void
-	exec(sql: string): void
+	execute(sql: string): void
 	prepare(sql: string): SQLiteStatementInterface
 	transaction<R>(scope: () => R): R
 	/**

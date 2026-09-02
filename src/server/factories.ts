@@ -2,7 +2,7 @@ import type { SQLiteDatabaseInterface, SQLiteDatabaseOptions } from './types.js'
 import { SQLiteDatabase } from './SQLiteDatabase.js'
 
 /**
- * Create a synchronous SQLite database over `node:sqlite`.
+ * Creates a synchronous SQLite database over `node:sqlite`.
  *
  * @remarks
  * The wrapper connects lazily — call `connect` (or it is required by the first
@@ -19,7 +19,7 @@ import { SQLiteDatabase } from './SQLiteDatabase.js'
  *
  * const db = createSQLiteDatabase({ path: ':memory:' })
  * db.connect()
- * db.exec('CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT)')
+ * db.execute('CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT)')
  * db.prepare('INSERT INTO users VALUES (?, ?)').run(['u1', 'Ada'])
  * db.prepare('SELECT name FROM users WHERE id = ?').get(['u1']) // { name: 'Ada' }
  * ```

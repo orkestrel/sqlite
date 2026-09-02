@@ -99,7 +99,7 @@ describe('wrapError', () => {
 	it('surfaces a duplicate primary key as a CONSTRAINT SQLiteError end to end', () => {
 		const db = createSQLiteDatabase()
 		db.connect()
-		db.exec('CREATE TABLE t (id TEXT PRIMARY KEY)')
+		db.execute('CREATE TABLE t (id TEXT PRIMARY KEY)')
 		db.prepare('INSERT INTO t VALUES (?)').run(['dup'])
 		const caught = captureError(() => db.prepare('INSERT INTO t VALUES (?)').run(['dup']))
 		db.close()

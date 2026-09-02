@@ -9,7 +9,7 @@ import { createSQLiteDatabase } from '@orkestrel/sqlite'
 
 const db = createSQLiteDatabase({ path: ':memory:' }) // omit `path` for the same in-memory default
 db.connect() // open the handle (lazy + idempotent); calls before this throw a CLOSED SQLiteError
-db.exec('CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT, age INTEGER)')
+db.execute('CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT, age INTEGER)')
 
 // `readonly`, `timeout`, and `foreignKeys` thread straight to node:sqlite's native
 // options; the database itself also implements `[Symbol.dispose]` (same as
@@ -27,10 +27,10 @@ db.prepare('SELECT name FROM users WHERE age >= ?').all([18]) // → [{ name: 'A
 
 ### Entities
 
-| API               | Kind  | Summary                                                                                                               |
-| ----------------- | ----- | --------------------------------------------------------------------------------------------------------------------- |
-| `SQLiteDatabase`  | class | The database — `connect` / `close` / `exec` / `prepare` / `transaction` / `begin` / `commit` / `rollback` / `pragma`. |
-| `SQLiteStatement` | class | A prepared statement — `run` / `get` / `all` / `iterate`.                                                             |
+| API               | Kind  | Summary                                                                                                                  |
+| ----------------- | ----- | ------------------------------------------------------------------------------------------------------------------------ |
+| `SQLiteDatabase`  | class | The database — `connect` / `close` / `execute` / `prepare` / `transaction` / `begin` / `commit` / `rollback` / `pragma`. |
+| `SQLiteStatement` | class | A prepared statement — `run` / `get` / `all` / `iterate`.                                                                |
 
 ### Constants
 
@@ -78,7 +78,7 @@ The public methods of each behavioral interface — one table per type, keyed by
 | ------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `connect`     | `void`                     | Open the underlying connection — lazy and idempotent; a second call is a no-op.                            |
 | `close`       | `void`                     | Release the connection; afterward every operation gates `CLOSED` until reconnect.                          |
-| `exec`        | `void`                     | Run one or more result-less SQL statements (DDL, pragmas) in a single call.                                |
+| `execute`     | `void`                     | Run one or more result-less SQL statements (DDL, pragmas) in a single call.                                |
 | `prepare`     | `SQLiteStatementInterface` | Compile SQL into a reusable prepared statement (the only path that runs queries).                          |
 | `transaction` | `R`                        | Run `scope` between `BEGIN` and `COMMIT`, rolling the whole scope back and rethrowing on a throw.          |
 | `begin`       | `void`                     | Open a transaction (`BEGIN`); throws the native fault (e.g. a nested `BEGIN`) as a `SQLiteError`.          |
@@ -111,14 +111,14 @@ These invariants hold across `src/server/sqlite` ↔ `sqlite.md`:
 
 ## Patterns
 
-### Connect, exec, and round-trip a row
+### Connect, execute, and round-trip a row
 
 ```ts
 import { createSQLiteDatabase } from '@orkestrel/sqlite'
 
 const db = createSQLiteDatabase() // path defaults to ':memory:'
 db.connect()
-db.exec('CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT, age INTEGER)')
+db.execute('CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT, age INTEGER)')
 const result = db.prepare('INSERT INTO users VALUES (?, ?, ?)').run(['u1', 'Ada', 36])
 result.changes // 1
 db.prepare('SELECT * FROM users WHERE id = ?').get(['u1']) // { id: 'u1', name: 'Ada', age: 36 }
@@ -224,7 +224,7 @@ const exact = createSQLiteDatabase({ bigints: true })
 {
 	using db = createSQLiteDatabase()
 	db.connect()
-	db.exec('CREATE TABLE t (id INTEGER)')
+	db.execute('CREATE TABLE t (id INTEGER)')
 } // db.close() runs automatically at the end of the block
 ```
 
@@ -251,7 +251,7 @@ bindParameters(['u1', 'Ada']) // → { positional: ['u1', 'Ada'] }
 bindParameters({ id: 'u1' }) // → { named: { id: 'u1' } }
 
 try {
-	db.exec('not sql')
+	db.execute('not sql')
 } catch (error) {
 	wrapError(error) // a typed SQLiteError, mapped from the native throw
 }
@@ -273,7 +273,7 @@ try {
 ## Tests
 
 - [`tests/guides.test.ts`](../tests/guides.test.ts) — the `## Surface` ↔ `src/server` bijection and the `## Methods` ↔ interface/class method parity.
-- [`tests/src/server/SQLiteDatabase.test.ts`](../tests/src/server/SQLiteDatabase.test.ts) — the database in a real `:memory:` SQLite: connect / close lifecycle, the `CLOSED` gate, exec DDL, prepare round-trip, transaction commit and rollback, pragma get + set, and the production options — `readonly` rejecting a write, `foreignKeys` enforcing a real FK violation, `timeout` surfacing `BUSY` from a genuinely locked second connection, and `[Symbol.dispose]` closing inside a `using` block.
+- [`tests/src/server/SQLiteDatabase.test.ts`](../tests/src/server/SQLiteDatabase.test.ts) — the database in a real `:memory:` SQLite: connect / close lifecycle, the `CLOSED` gate, execute DDL, prepare round-trip, transaction commit and rollback, pragma get + set, and the production options — `readonly` rejecting a write, `foreignKeys` enforcing a real FK violation, `timeout` surfacing `BUSY` from a genuinely locked second connection, and `[Symbol.dispose]` closing inside a `using` block.
 - [`tests/src/server/SQLiteStatement.test.ts`](../tests/src/server/SQLiteStatement.test.ts) — prepared statements: `run`'s result, positional and named binding, `get` / `all` / `iterate`, and a `CONSTRAINT` violation.
 - [`tests/src/server/helpers.test.ts`](../tests/src/server/helpers.test.ts) — the wrapper's boundary helpers as pure units: `wrapError` mapping a thrown value to a typed `SQLiteError` (real constraint fault → `CONSTRAINT`, real locked-database fault → `BUSY`, non-error → `UNKNOWN`, pass-through) and `bindParameters` normalizing parameters to the native binding shape (array → positional, record → named).
 - [`tests/src/server/factories.test.ts`](../tests/src/server/factories.test.ts) — `createSQLiteDatabase` returns a working `SQLiteDatabaseInterface` and defaults its path to `:memory:`.

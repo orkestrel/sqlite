@@ -14,7 +14,7 @@ let db: SQLiteDatabaseInterface
 beforeEach(() => {
 	db = createSQLiteDatabase()
 	db.connect()
-	db.exec('CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT, age INTEGER)')
+	db.execute('CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT, age INTEGER)')
 })
 
 describe('SQLiteStatement — run', () => {
@@ -72,7 +72,7 @@ describe('SQLiteStatement — get / all / iterate', () => {
 	})
 
 	it('maps a mid-stream native fault (a later row) to a SQLiteError instead of throwing raw', () => {
-		db.exec('CREATE TABLE t (id INTEGER PRIMARY KEY, value INTEGER)')
+		db.execute('CREATE TABLE t (id INTEGER PRIMARY KEY, value INTEGER)')
 		db.prepare('INSERT INTO t VALUES (?, ?)').run([1, 1])
 		db.prepare('INSERT INTO t VALUES (?, ?)').run([2, 9007199254740993n])
 		const iterator = db.prepare('SELECT value FROM t ORDER BY id').iterate()
