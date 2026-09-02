@@ -87,7 +87,7 @@ describe('SQLiteDatabase — transacting', () => {
 })
 
 describe('SQLiteDatabase — execute and prepare', () => {
-	it('execs DDL and round-trips a row through a prepared statement', () => {
+	it('executes DDL and round-trips a row through a prepared statement', () => {
 		const db = createSQLiteDatabase()
 		db.connect()
 		db.execute('CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT, age INTEGER)')
