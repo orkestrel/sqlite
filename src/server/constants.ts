@@ -1,7 +1,7 @@
 // The wrapper's numeric SQLite result codes (AGENTS §5 constants file).
 
 /**
- * SQLite result code for a constraint violation (`SQLITE_CONSTRAINT`).
+ * Names the SQLite result code for a constraint violation.
  *
  * @remarks
  * A native `errcode` packs the primary result in its low byte, with extended codes
@@ -11,7 +11,7 @@
 export const SQLITE_CONSTRAINT = 19
 
 /**
- * SQLite result code for a locked-database fault (`SQLITE_BUSY`).
+ * Names the SQLite result code for a locked-database fault.
  *
  * @remarks
  * A native `errcode` packs the primary result in its low byte, with extended codes

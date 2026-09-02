@@ -11,7 +11,7 @@ import { wrapError } from './helpers.js'
 import { SQLiteStatement } from './SQLiteStatement.js'
 
 /**
- * A synchronous SQLite database over `node:sqlite`'s `DatabaseSync`.
+ * Represents a synchronous SQLite database over `node:sqlite`'s `DatabaseSync`.
  *
  * @remarks
  * Created by `createSQLiteDatabase`. It connects lazily (`connect` opens the
@@ -71,7 +71,7 @@ export class SQLiteDatabase implements SQLiteDatabaseInterface {
 		this.#database = undefined
 	}
 
-	/** Close the connection — enables `using db = createSQLiteDatabase(...)`. */
+	/** Closes the connection — enables `using db = createSQLiteDatabase(...)`. */
 	[Symbol.dispose](): void {
 		this.close()
 	}

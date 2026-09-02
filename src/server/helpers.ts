@@ -11,7 +11,7 @@ import { SQLiteError } from './errors.js'
 // named record). Both are pure.
 
 /**
- * Convert a thrown native `node:sqlite` error into a typed {@link SQLiteError}.
+ * Converts a thrown native `node:sqlite` error into a typed {@link SQLiteError}.
  *
  * @remarks
  * The single boundary mapping for the wrapper. The thrown value arrives as
@@ -44,7 +44,7 @@ export function wrapError(error: unknown): SQLiteError {
 }
 
 /**
- * Normalize {@link SQLiteParameters} to the binding shape a native `StatementSync`
+ * Normalizes {@link SQLiteParameters} to the binding shape a native `StatementSync`
  * call expects.
  *
  * @remarks

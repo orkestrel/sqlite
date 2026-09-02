@@ -9,7 +9,7 @@ import { SQLiteError } from './errors.js'
 import { bindParameters, wrapError } from './helpers.js'
 
 /**
- * A prepared statement over `node:sqlite`'s `StatementSync` — the only way the
+ * Represents a prepared statement over `node:sqlite`'s `StatementSync` — the only way the
  * wrapper runs SQL.
  *
  * @remarks

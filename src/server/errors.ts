@@ -9,7 +9,7 @@ import type { SQLiteErrorCode } from './types.js'
 // wrapper-lifecycle fault, and everything else is `UNKNOWN` (AGENTS §12).
 
 /**
- * An error thrown by the SQLite wrapper.
+ * Represents an error thrown by the SQLite wrapper.
  *
  * @remarks
  * Carries a {@link SQLiteErrorCode} and an optional `context` record (e.g. the
@@ -42,10 +42,10 @@ export class SQLiteError extends Error {
 }
 
 /**
- * Whether a value is a {@link SQLiteError}.
+ * Checks whether a value is a {@link SQLiteError}.
  *
  * @param value - The value to test
- * @returns `true` when `value` is a `SQLiteError`
+ * @returns True if `value` is a `SQLiteError`; false otherwise
  */
 export function isSQLiteError(value: unknown): value is SQLiteError {
 	return value instanceof SQLiteError
