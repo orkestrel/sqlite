@@ -17,7 +17,7 @@ npm install @orkestrel/sqlite
 
 ## Requirements
 
-- Node.js >= 22.12
+- Node.js ^22.18 || >=24.4 (the releases carrying the `timeout`, `isTransaction`, and `readBigInts` options and `StatementSync.iterate`)
 - `node:sqlite` (Node's built-in SQLite module)
 - Server-only — no browser build
 

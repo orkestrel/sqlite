@@ -100,8 +100,8 @@ export interface SQLiteDatabaseOptions {
  * to bare named placeholders) and runs synchronously: `execute` for a non-query,
  * `get` for the first row, `all` for every row, `iterate` for a lazy stream. A
  * native fault surfaces as a {@link SQLiteError}; a fault raised while finalizing
- * an abandoned `iterate` stream is discarded instead, so leaving the loop early
- * never throws.
+ * an `iterate` stream on any exit after its first step is discarded instead, so
+ * leaving the loop never throws.
  */
 export interface SQLiteStatementInterface {
 	execute(parameters?: SQLiteParameters): SQLiteExecuteResult
