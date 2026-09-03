@@ -5,10 +5,10 @@ import { SQLiteError } from './errors.js'
 
 // The wrapper's boundary helpers, shared by `SQLiteDatabase` and `SQLiteStatement`:
 // `wrapError` maps a thrown native `node:sqlite` error to a typed `SQLiteError`
-// (the one honest narrowing point — `isObject` + `in`, never `as`, per AGENTS
-// §14), and `bindParameters` normalizes the wrapper's `SQLiteParameters` to the
-// shape a native `StatementSync` call expects (positional spread vs. a single
-// named record). Both are pure.
+// (the one honest narrowing point — `isObject` + `in`, never `as`), and
+// `bindParameters` normalizes the wrapper's `SQLiteParameters` to the shape a
+// native `StatementSync` call expects (positional spread, or a single named
+// record). Both are pure.
 
 /**
  * Converts a thrown native `node:sqlite` error into a typed {@link SQLiteError}.

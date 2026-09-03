@@ -3,17 +3,18 @@ import type { SQLiteErrorCode } from './types.js'
 // Errors for the SQLite wrapper. A single `SQLiteError` carries a
 // machine-readable `code` mapped from the native `node:sqlite` fault at the
 // boundary (`wrapError`), so a `catch` branches on `error.code` rather than
-// parsing a message. Mirrors the IndexedDB wrapper's `IndexedDBError`; its three
-// codes are deliberately lean — the wrapper sits right on the raw SQLite surface,
-// where the constraint fault is the one worth naming, `CLOSED` is the
-// wrapper-lifecycle fault, and everything else is `UNKNOWN` (AGENTS §12).
+// parsing a message. Mirrors the IndexedDB wrapper's `IndexedDBError`; its codes
+// stay lean — the wrapper sits right on the raw SQLite surface, where
+// `CONSTRAINT` and `BUSY` are the native faults worth naming, `CLOSED` is the
+// wrapper-lifecycle fault, `INVALID` is the wrapper's own invalid-argument fault,
+// and everything else is `UNKNOWN`.
 
 /**
  * Represents an error thrown by the SQLite wrapper.
  *
  * @remarks
- * Carries a {@link SQLiteErrorCode} and an optional `context` record (e.g. the
- * native SQLite `errcode`). Construct it directly for the `CLOSED`
+ * Carries a {@link SQLiteErrorCode} and an optional `context` record (for example
+ * the native SQLite `errcode`). Construct it directly for the `CLOSED`
  * wrapper-lifecycle fault; the internal `wrapError` maps a native `node:sqlite`
  * error to the right code at the boundary. Narrow a caught value with
  * {@link isSQLiteError}.
@@ -21,7 +22,7 @@ import type { SQLiteErrorCode } from './types.js'
  * @example
  * ```ts
  * try {
- * 	statement.run({ id: 'u1' })
+ * 	statement.execute({ id: 'u1' })
  * } catch (error) {
  * 	if (isSQLiteError(error) && error.code === 'CONSTRAINT') {
  * 		// a UNIQUE / PRIMARY KEY violation

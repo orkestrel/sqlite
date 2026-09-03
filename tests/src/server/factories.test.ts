@@ -16,7 +16,7 @@ describe('createSQLiteDatabase', () => {
 		db.connect()
 		expect(db.connected).toBe(true)
 		db.execute('CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT)')
-		db.prepare('INSERT INTO users VALUES (?, ?)').run(['u1', 'Ada'])
+		db.prepare('INSERT INTO users VALUES (?, ?)').execute(['u1', 'Ada'])
 		expect(db.prepare('SELECT name FROM users WHERE id = ?').get(['u1'])).toEqual({ name: 'Ada' })
 		db.close()
 	})

@@ -3,12 +3,12 @@
 // power (prepared statements, transactions, pragmas) and nothing the core
 // database layer can already express: there is **no** query / filter / sort /
 // aggregate builder here (that is the one core engine, running over `scan`), the
-// same discipline as the IndexedDB wrapper. The SQLite `DriverInterface` (Chunk
-// 3) is built on this wrapper; standalone server code can use it directly. Types
-// are the source of truth (AGENTS §2).
+// same discipline as the IndexedDB wrapper. `@orkestrel/database`'s SQLite driver
+// is built on this wrapper; standalone server code can use it directly. Types are
+// the source of truth.
 //
-// Values are SQLite's native types, narrowed at the typed layer above (the
-// driver) through a contract, never re-narrowed here (AGENTS §14).
+// Values are SQLite's native types, narrowed at the typed layer above (that
+// package's driver) through a contract, never re-narrowed here.
 
 /**
  * Represents a value SQLite stores and returns natively — the SQL ↔ JS bridge.
@@ -44,7 +44,7 @@ export type SQLiteBinding =
 	| { readonly named: Readonly<Record<string, SQLiteValue>> }
 
 /** Represents the outcome of a non-query statement (`INSERT` / `UPDATE` / `DELETE` / DDL). */
-export interface SQLiteRunResult {
+export interface SQLiteExecuteResult {
 	readonly changes: number
 	readonly rowid: number
 }
@@ -56,8 +56,11 @@ export interface SQLiteRunResult {
  * `'BUSY'` is retryable — it means a locked database was still held by another
  * connection when the `timeout` (see {@link SQLiteDatabaseOptions}) elapsed; a
  * caller may retry the operation, typically after backing off briefly.
+ * `'INVALID'` is the wrapper's own invalid-argument fault, refused before any SQL
+ * runs, and stays distinct from `'UNKNOWN'`, which carries an unclassified native
+ * `node:sqlite` fault.
  */
-export type SQLiteErrorCode = 'CLOSED' | 'CONSTRAINT' | 'BUSY' | 'UNKNOWN'
+export type SQLiteErrorCode = 'CLOSED' | 'CONSTRAINT' | 'BUSY' | 'INVALID' | 'UNKNOWN'
 
 /**
  * Represents the options for `createSQLiteDatabase`.
@@ -94,12 +97,14 @@ export interface SQLiteDatabaseOptions {
  * @remarks
  * Reached through `database.prepare(sql)`. Each method binds the optional
  * `parameters` (an array spread to positional `?` placeholders, or a record bound
- * to bare named placeholders) and executes synchronously: `run` for a non-query,
+ * to bare named placeholders) and runs synchronously: `execute` for a non-query,
  * `get` for the first row, `all` for every row, `iterate` for a lazy stream. A
- * native fault surfaces as a {@link SQLiteError}.
+ * native fault surfaces as a {@link SQLiteError}; a fault raised while finalizing
+ * an abandoned `iterate` stream is discarded instead, so leaving the loop early
+ * never throws.
  */
 export interface SQLiteStatementInterface {
-	run(parameters?: SQLiteParameters): SQLiteRunResult
+	execute(parameters?: SQLiteParameters): SQLiteExecuteResult
 	get(parameters?: SQLiteParameters): SQLiteRow | undefined
 	all(parameters?: SQLiteParameters): readonly SQLiteRow[]
 	iterate(parameters?: SQLiteParameters): IterableIterator<SQLiteRow>
@@ -107,25 +112,26 @@ export interface SQLiteStatementInterface {
 
 /**
  * Represents a synchronous SQLite database over `node:sqlite`'s `DatabaseSync` — a lean,
- * typed, zero-dependency layer exposing prepared statements, transactions, and
- * pragmas. Synchronous because `node:sqlite` is; the SQLite *driver* (Chunk 3)
- * adapts it to the async `DriverInterface`.
+ * typed layer whose one runtime dependency is `@orkestrel/contract`, exposing prepared
+ * statements, transactions, and pragmas. Synchronous because `node:sqlite` is;
+ * `@orkestrel/database`'s SQLite driver adapts it to that package's asynchronous driver
+ * contract.
  *
  * @remarks
  * Connects lazily — `connect` opens the underlying `DatabaseSync` (idempotent),
  * and every operation requires an open connection, throwing a `CLOSED`
  * {@link SQLiteError} before `connect` or after `close`. `execute` runs SQL with
  * no results (DDL, pragmas); `prepare` compiles a {@link SQLiteStatementInterface};
- * `transaction` runs a scope between `BEGIN` and `COMMIT`, rolling back on a
+ * `transact` runs a scope between `BEGIN` and `COMMIT`, rolling back on a
  * throw; `pragma` reads (or sets then reads) a single PRAGMA value — `name` is
- * trusted internal use only, never untrusted input, since pragma names cannot
- * be bound as parameters. `transacting` reports whether a transaction is
- * currently open on this connection — node:sqlite's `isTransaction` (wraps
+ * trusted internal use only, never untrusted input, because pragma names cannot
+ * be bound as parameters. `transacting` reports whether a transaction is open on
+ * this connection — node:sqlite's `isTransaction` (wraps
  * `sqlite3_get_autocommit()`); `false` when not connected. `begin` / `commit` /
  * `rollback` are the same `BEGIN` / `COMMIT` / `ROLLBACK` primitives
- * `transaction` composes internally, exposed directly for a long-lived or
+ * `transact` composes internally, exposed directly for a long-lived or
  * externally-driven transaction that a single synchronous scope cannot
- * express — `transaction(scope)` remains the right tool whenever the whole
+ * express — `transact(scope)` remains the right tool whenever the whole
  * transaction fits in one synchronous scope. `[Symbol.dispose]` closes the
  * connection (same as `close`), enabling `using` to release it
  * deterministically at the end of a block.
@@ -138,18 +144,18 @@ export interface SQLiteDatabaseInterface {
 	close(): void
 	execute(sql: string): void
 	prepare(sql: string): SQLiteStatementInterface
-	transaction<R>(scope: () => R): R
+	transact<R>(scope: () => R): R
 	/**
 	 * Opens a transaction (`BEGIN`). Throws the native fault — including a
-	 * nested `BEGIN` while one is already open — as a {@link SQLiteError}; a
-	 * caller composing its own transaction alongside others should branch on
-	 * {@link SQLiteDatabaseInterface.transacting} first rather than catch this
-	 * (see the Practices section in `guides/sqlite.md`).
+	 * nested `BEGIN` while one is already open — as a {@link SQLiteError}.
+	 * Branch on {@link SQLiteDatabaseInterface.transacting} first rather than
+	 * catching this when composing a transaction alongside others (see the
+	 * Practices section in `guides/sqlite.md`).
 	 */
 	begin(): void
-	/** Commits the currently open transaction (`COMMIT`); throws the native fault as a {@link SQLiteError} when none is open. */
+	/** Commits the open transaction (`COMMIT`); throws the native fault as a {@link SQLiteError} when none is open. */
 	commit(): void
-	/** Rolls back the currently open transaction (`ROLLBACK`); throws the native fault as a {@link SQLiteError} when none is open. */
+	/** Rolls back the open transaction (`ROLLBACK`); throws the native fault as a {@link SQLiteError} when none is open. */
 	rollback(): void
 	pragma(name: string, value?: string | number): SQLiteValue | undefined
 	[Symbol.dispose](): void

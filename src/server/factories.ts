@@ -6,11 +6,10 @@ import { SQLiteDatabase } from './SQLiteDatabase.js'
  *
  * @remarks
  * The wrapper connects lazily — call `connect` (or it is required by the first
- * operation, which throws `CLOSED` until then). This is the lower-level native
- * handle a higher-level typed database engine would be built on; here it ships
- * as the standalone, server-native SQLite surface.
+ * operation, which throws `CLOSED` until then). This is the standalone,
+ * server-native SQLite handle; `@orkestrel/database`'s SQLite driver builds on it.
  *
- * @param options - The database `path` (a file path, or `':memory:'` by default)
+ * @param options - The database options; see {@link SQLiteDatabaseOptions} for `path`, `readonly`, `timeout`, `foreignKeys`, and `bigints`. Default: an in-memory database (`path` `':memory:'`).
  * @returns A typed {@link SQLiteDatabaseInterface}
  *
  * @example
@@ -20,7 +19,7 @@ import { SQLiteDatabase } from './SQLiteDatabase.js'
  * const db = createSQLiteDatabase({ path: ':memory:' })
  * db.connect()
  * db.execute('CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT)')
- * db.prepare('INSERT INTO users VALUES (?, ?)').run(['u1', 'Ada'])
+ * db.prepare('INSERT INTO users VALUES (?, ?)').execute(['u1', 'Ada'])
  * db.prepare('SELECT name FROM users WHERE id = ?').get(['u1']) // { name: 'Ada' }
  * ```
  */

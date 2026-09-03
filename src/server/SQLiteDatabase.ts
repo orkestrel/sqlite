@@ -1,10 +1,10 @@
-import { DatabaseSync } from 'node:sqlite'
 import type {
 	SQLiteDatabaseInterface,
 	SQLiteDatabaseOptions,
 	SQLiteStatementInterface,
 	SQLiteValue,
 } from './types.js'
+import { DatabaseSync } from 'node:sqlite'
 import { isPromiseLike } from '@orkestrel/contract'
 import { SQLiteError } from './errors.js'
 import { wrapError } from './helpers.js'
@@ -18,12 +18,12 @@ import { SQLiteStatement } from './SQLiteStatement.js'
  * underlying `DatabaseSync`, idempotent) and every operation routes through a
  * private gate that throws a `CLOSED` `SQLiteError` before `connect` or after
  * `close`. `execute` runs result-less SQL; `prepare` compiles a `SQLiteStatement`;
- * `transaction` wraps a scope in `BEGIN` / `COMMIT`, rolling back on a throw;
+ * `transact` wraps a scope in `BEGIN` / `COMMIT`, rolling back on a throw;
  * `begin` / `commit` / `rollback` expose those same primitives directly for a
  * long-lived or externally-driven transaction; `pragma` reads (or sets then
  * reads) one PRAGMA value — `name` is trusted
- * internal use only, never untrusted input, since pragma names cannot be bound
- * as parameters. `transacting` reports whether a transaction is currently open
+ * internal use only, never untrusted input, because pragma names cannot be bound
+ * as parameters. `transacting` reports whether a transaction is open
  * (node:sqlite's `isTransaction`), `false` when not connected. A native fault
  * surfaces as a `SQLiteError` mapped at the boundary.
  */
@@ -97,14 +97,14 @@ export class SQLiteDatabase implements SQLiteDatabaseInterface {
 		}
 	}
 
-	transaction<R>(scope: () => R): R {
+	transact<R>(scope: () => R): R {
 		this.begin()
 		let result: R
 		try {
 			result = scope()
 		} catch (error) {
-			// A ROLLBACK fault (e.g. the database was closed by the scope) must never
-			// mask the scope's own error — the caller needs to see why it failed.
+			// A ROLLBACK fault (for example the database was closed by the scope) must
+			// never mask the scope's own error — the caller needs to see why it failed.
 			try {
 				this.rollback()
 			} catch {
@@ -122,8 +122,8 @@ export class SQLiteDatabase implements SQLiteDatabaseInterface {
 				// swallowed — the guard error below is what the caller needs to see
 			}
 			throw new SQLiteError(
-				'UNKNOWN',
-				'transaction(scope) requires a synchronous scope — an async or Promise-returning scope cannot commit or roll back before its awaited work runs; use begin() / commit() / rollback() directly for a transaction that spans async caller code',
+				'INVALID',
+				'transact(scope) requires a synchronous scope — an async or Promise-returning scope cannot commit or roll back before its awaited work runs; use begin() / commit() / rollback() directly for a transaction that spans async caller code',
 			)
 		}
 		this.commit()

@@ -25,8 +25,8 @@ import { afterAll, describe, expect, it } from 'vitest'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const NPM = process.platform === 'win32' ? 'npm.cmd' : 'npm'
-// Windows needs a shell to launch a `.cmd`: Node refuses one directly since the
-// batch-argument hardening, and `spawnSync` returns `EINVAL` with a null status
+// Windows needs a shell to launch a `.cmd`: Node refuses one directly because of
+// the batch-argument hardening, and `spawnSync` returns `EINVAL` with a null status
 // rather than an exit code a caller can read. Every following argument is a literal or
 // a path this file built, so the shell has nothing to escape.
 const SHELL = process.platform === 'win32'

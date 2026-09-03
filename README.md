@@ -5,9 +5,9 @@ over Node's built-in `node:sqlite` (`DatabaseSync` / `StatementSync`) giving
 prepared statements, transactions, and pragmas, with a single runtime
 dependency: `@orkestrel/contract`, used for its boundary narrowing.
 
-`node:sqlite` is experimental on current Node versions — importing this
-package emits an `ExperimentalWarning` at runtime until Node stabilizes the
-module.
+Node marks `node:sqlite` experimental. On Node 22.22.2, importing this package
+prints `ExperimentalWarning: SQLite is an experimental feature and might change
+at any time`.
 
 ## Install
 
@@ -19,7 +19,7 @@ npm install @orkestrel/sqlite
 
 - Node.js >= 22.12
 - `node:sqlite` (Node's built-in SQLite module)
-- Server-only — no CommonJS/browser split, single Node-native surface
+- Server-only — no browser build
 
 ## Status
 
@@ -31,8 +31,8 @@ stable `1.0` release.
 ## Package
 
 Published as a single Node-only surface per the `exports` field in
-`package.json` — one `.` entry backed by a CommonJS build of `src/server`
-(required by `node:sqlite`'s CJS-only shape at this Node version).
+`package.json` — one `.` entry that serves an ES module to `import` and a
+CommonJS build to `require`, both built from `src/server`.
 
 ## License
 

@@ -2,12 +2,12 @@ import { createSQLiteDatabase, SQLiteError } from '@src/server'
 import { createScratch } from '@orkestrel/test/server'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { sqliteErrorCode } from '../../setupServer.js'
+import { lockDatabase, sqliteErrorCode } from '../../setupServer.js'
 
-// The SQLite wrapper in a real in-memory database (no mocks, AGENTS §16) —
-// connect / connected / close lifecycle, the CLOSED gate before connect and after
-// close, execute DDL, prepare round-trip, transaction commit and rollback-on-throw,
-// and pragma get + set.
+// The SQLite wrapper in a real in-memory database, with no mocks — connect /
+// connected / close lifecycle, the CLOSED gate before connect and after close,
+// execute DDL, prepare round-trip, transact commit and rollback-on-throw, and
+// pragma get + set.
 
 describe('SQLiteDatabase — lifecycle', () => {
 	it('connects lazily and idempotently, and reports connected', () => {
@@ -60,7 +60,7 @@ describe('SQLiteDatabase — transacting', () => {
 		const db = createSQLiteDatabase()
 		db.connect()
 		db.execute('CREATE TABLE t (id INTEGER PRIMARY KEY)')
-		db.transaction(() => {
+		db.transact(() => {
 			expect(db.transacting).toBe(true)
 		})
 		expect(db.transacting).toBe(false)
@@ -91,7 +91,7 @@ describe('SQLiteDatabase — execute and prepare', () => {
 		const db = createSQLiteDatabase()
 		db.connect()
 		db.execute('CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT, age INTEGER)')
-		db.prepare('INSERT INTO users VALUES (?, ?, ?)').run(['u1', 'Ada', 36])
+		db.prepare('INSERT INTO users VALUES (?, ?, ?)').execute(['u1', 'Ada', 36])
 		expect(db.prepare('SELECT * FROM users WHERE id = ?').get(['u1'])).toEqual({
 			id: 'u1',
 			name: 'Ada',
@@ -106,14 +106,14 @@ describe('SQLiteDatabase — execute and prepare', () => {
 	})
 })
 
-describe('SQLiteDatabase — transaction', () => {
+describe('SQLiteDatabase — transact', () => {
 	it('commits the scope and returns its value', () => {
 		const db = createSQLiteDatabase()
 		db.connect()
 		db.execute('CREATE TABLE t (id INTEGER PRIMARY KEY)')
-		const result = db.transaction(() => {
-			db.prepare('INSERT INTO t VALUES (?)').run([1])
-			db.prepare('INSERT INTO t VALUES (?)').run([2])
+		const result = db.transact(() => {
+			db.prepare('INSERT INTO t VALUES (?)').execute([1])
+			db.prepare('INSERT INTO t VALUES (?)').execute([2])
 			return 'done'
 		})
 		expect(result).toBe('done')
@@ -124,10 +124,10 @@ describe('SQLiteDatabase — transaction', () => {
 		const db = createSQLiteDatabase()
 		db.connect()
 		db.execute('CREATE TABLE t (id INTEGER PRIMARY KEY)')
-		db.prepare('INSERT INTO t VALUES (?)').run([1])
+		db.prepare('INSERT INTO t VALUES (?)').execute([1])
 		expect(() =>
-			db.transaction(() => {
-				db.prepare('INSERT INTO t VALUES (?)').run([2])
+			db.transact(() => {
+				db.prepare('INSERT INTO t VALUES (?)').execute([2])
 				throw new Error('boom')
 			}),
 		).toThrow('boom')
@@ -135,23 +135,23 @@ describe('SQLiteDatabase — transaction', () => {
 		expect(db.prepare('SELECT COUNT(*) AS n FROM t').get()).toEqual({ n: 1 })
 	})
 
-	it('rolls back and throws UNKNOWN when the scope returns a thenable (an async scope)', async () => {
+	it('rolls back and throws INVALID when the scope returns a thenable (an async scope)', async () => {
 		const db = createSQLiteDatabase()
 		db.connect()
 		db.execute('CREATE TABLE t (id INTEGER PRIMARY KEY)')
 		expect(() =>
-			db.transaction(async () => {
-				db.prepare('INSERT INTO t VALUES (?)').run([1])
+			db.transact(async () => {
+				db.prepare('INSERT INTO t VALUES (?)').execute([1])
 				await Promise.resolve()
 			}),
 		).toThrow(SQLiteError)
 		expect(
 			sqliteErrorCode(() =>
-				db.transaction(async () => {
+				db.transact(async () => {
 					await Promise.resolve()
 				}),
 			),
-		).toBe('UNKNOWN')
+		).toBe('INVALID')
 		expect(db.transacting).toBe(false)
 		expect(db.prepare('SELECT COUNT(*) AS n FROM t').get()).toEqual({ n: 0 })
 		db.close()
@@ -163,8 +163,8 @@ describe('SQLiteDatabase — transaction', () => {
 		db.execute('CREATE TABLE t (id INTEGER PRIMARY KEY)')
 		const sentinel = new Error('sentinel scope error')
 		expect(() =>
-			db.transaction(() => {
-				db.close() // ROLLBACK will fault: the connection is now closed
+			db.transact(() => {
+				db.close() // ROLLBACK will fault: the connection is closed
 				throw sentinel
 			}),
 		).toThrow(sentinel)
@@ -178,7 +178,7 @@ describe('SQLiteDatabase — begin / commit / rollback', () => {
 		db.execute('CREATE TABLE t (id INTEGER PRIMARY KEY)')
 		db.begin()
 		expect(db.transacting).toBe(true)
-		db.prepare('INSERT INTO t VALUES (?)').run([1])
+		db.prepare('INSERT INTO t VALUES (?)').execute([1])
 		db.commit()
 		expect(db.transacting).toBe(false)
 		expect(db.prepare('SELECT COUNT(*) AS n FROM t').get()).toEqual({ n: 1 })
@@ -189,7 +189,7 @@ describe('SQLiteDatabase — begin / commit / rollback', () => {
 		db.connect()
 		db.execute('CREATE TABLE t (id INTEGER PRIMARY KEY)')
 		db.begin()
-		db.prepare('INSERT INTO t VALUES (?)').run([1])
+		db.prepare('INSERT INTO t VALUES (?)').execute([1])
 		expect(db.transacting).toBe(true)
 		db.rollback()
 		expect(db.transacting).toBe(false)
@@ -222,7 +222,7 @@ describe('SQLiteDatabase — bigints', () => {
 		const db = createSQLiteDatabase()
 		db.connect()
 		db.execute('CREATE TABLE t (id INTEGER PRIMARY KEY, value INTEGER)')
-		db.prepare('INSERT INTO t VALUES (?, ?)').run([1, 9007199254740993n])
+		db.prepare('INSERT INTO t VALUES (?, ?)').execute([1, 9007199254740993n])
 		expect(sqliteErrorCode(() => db.prepare('SELECT value FROM t WHERE id = ?').get([1]))).toBe(
 			'UNKNOWN',
 		)
@@ -233,7 +233,7 @@ describe('SQLiteDatabase — bigints', () => {
 		const db = createSQLiteDatabase({ bigints: true })
 		db.connect()
 		db.execute('CREATE TABLE t (id INTEGER PRIMARY KEY, value INTEGER)')
-		db.prepare('INSERT INTO t VALUES (?, ?)').run([1, 9007199254740993n])
+		db.prepare('INSERT INTO t VALUES (?, ?)').execute([1, 9007199254740993n])
 		expect(db.prepare('SELECT value FROM t WHERE id = ?').get([1])).toEqual({
 			value: 9007199254740993n,
 		})
@@ -244,7 +244,7 @@ describe('SQLiteDatabase — bigints', () => {
 		const db = createSQLiteDatabase({ bigints: true })
 		db.connect()
 		db.execute('CREATE TABLE t (id INTEGER PRIMARY KEY, value INTEGER)')
-		db.prepare('INSERT INTO t VALUES (?, ?)').run([1, 5])
+		db.prepare('INSERT INTO t VALUES (?, ?)').execute([1, 5])
 		expect(db.prepare('SELECT value FROM t WHERE id = ?').get([1])).toEqual({ value: 5n })
 		db.close()
 	})
@@ -297,26 +297,18 @@ describe('SQLiteDatabase — production options', () => {
 
 	it('threads a busy timeout and surfaces BUSY from a locked second connection', () => {
 		const path = join(scratch.path, 'busy.db')
-		const seed = createSQLiteDatabase({ path })
-		seed.connect()
-		seed.execute('CREATE TABLE t (id INTEGER)')
-		seed.close()
-
-		const holder = createSQLiteDatabase({ path })
-		holder.connect()
-		holder.execute('BEGIN IMMEDIATE')
-		holder.execute('INSERT INTO t VALUES (1)')
+		const holder = lockDatabase(path)
 
 		const contender = createSQLiteDatabase({ path, timeout: 50 })
 		contender.connect()
 		expect(sqliteErrorCode(() => contender.execute('INSERT INTO t VALUES (2)'))).toBe('BUSY')
 		contender.close()
 
-		holder.execute('ROLLBACK')
+		holder.exec('ROLLBACK')
 		holder.close()
 	})
 
-	it('closes the connection via Symbol.dispose in a using block', () => {
+	it('closes the connection through Symbol.dispose in a using block', () => {
 		let db: ReturnType<typeof createSQLiteDatabase> | undefined
 		{
 			using scoped = createSQLiteDatabase()
