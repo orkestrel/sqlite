@@ -1,9 +1,14 @@
 # @orkestrel/sqlite
 
-A typed, synchronous SQLite wrapper for the `@orkestrel` line — a thin skin
-over Node's built-in `node:sqlite` (`DatabaseSync` / `StatementSync`) giving
-prepared statements, transactions, and pragmas, with a single runtime
-dependency: `@orkestrel/contract`, used for its boundary narrowing.
+> A lean, typed, synchronous wrapper over Node's built-in `node:sqlite` — a thin skin on
+> `DatabaseSync` / `StatementSync` that exposes prepared statements, transactions, and pragmas,
+> with one runtime dependency, `@orkestrel/contract`, for boundary narrowing.
+
+Create a database with the `createSQLiteDatabase` function, call `connect()` to open the handle,
+and run SQL through `execute` for a result-less statement or `prepare` for anything that binds
+parameters or returns rows. Wrap a set of writes in `transact(scope)` to commit them together,
+and branch a caught fault on `error.code` rather than on its message. Part of the `@orkestrel`
+line.
 
 Node marks `node:sqlite` experimental. On Node 22.22.2, importing this package
 prints `ExperimentalWarning: SQLite is an experimental feature and might change

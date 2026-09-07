@@ -2,7 +2,7 @@ import type { SQLiteDatabaseInterface, SQLiteDatabaseOptions } from './types.js'
 import { SQLiteDatabase } from './SQLiteDatabase.js'
 
 /**
- * Creates a synchronous SQLite database over `node:sqlite`.
+ * Creates a synchronous SQLite database over `node:sqlite`, defaulting its path to `:memory:`.
  *
  * @remarks
  * The wrapper connects lazily — call `connect` (or it is required by the first
@@ -12,15 +12,16 @@ import { SQLiteDatabase } from './SQLiteDatabase.js'
  * @param options - The database options; see {@link SQLiteDatabaseOptions} for `path`, `readonly`, `timeout`, `foreignKeys`, and `bigints`. Default: an in-memory database (`path` `':memory:'`).
  * @returns A typed {@link SQLiteDatabaseInterface}
  *
- * @example
+ * @example Connect, execute, and round-trip a row
  * ```ts
  * import { createSQLiteDatabase } from '@orkestrel/sqlite'
  *
- * const db = createSQLiteDatabase({ path: ':memory:' })
+ * const db = createSQLiteDatabase() // path defaults to ':memory:'
  * db.connect()
- * db.execute('CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT)')
- * db.prepare('INSERT INTO users VALUES (?, ?)').execute(['u1', 'Ada'])
- * db.prepare('SELECT name FROM users WHERE id = ?').get(['u1']) // { name: 'Ada' }
+ * db.execute('CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT, age INTEGER)')
+ * const result = db.prepare('INSERT INTO users VALUES (?, ?, ?)').execute(['u1', 'Ada', 36])
+ * result.changes // 1
+ * db.prepare('SELECT * FROM users WHERE id = ?').get(['u1']) // { id: 'u1', name: 'Ada', age: 36 }
  * ```
  */
 export function createSQLiteDatabase(options?: SQLiteDatabaseOptions): SQLiteDatabaseInterface {

@@ -1,6 +1,15 @@
 # SQLite
 
-> A lean, typed, **synchronous** wrapper over Node's built-in [`node:sqlite`](https://nodejs.org/api/sqlite.html) — one runtime dependency, `@orkestrel/contract`, for boundary narrowing — a thin typed skin on `DatabaseSync` / `StatementSync`. It surfaces exactly SQLite's native power — prepared statements, transactions, and pragmas — and deliberately no query / filter / sort / aggregate builder: it is the raw native handle, not an ORM, so a caller reaching for typed querying builds that layer on top. Source: [`src/server`](../src/server). Surfaced through the `@src/server` barrel. Requires Node.js ^22.18 || >=24.4 (the releases carrying the `timeout`, `isTransaction`, and `readBigInts` options and `StatementSync.iterate`).
+> A lean, typed, synchronous wrapper over Node's built-in `node:sqlite` — a thin skin on
+> `DatabaseSync` / `StatementSync` that exposes prepared statements, transactions, and pragmas,
+> with one runtime dependency, `@orkestrel/contract`, for boundary narrowing.
+
+The wrapper is the raw native handle rather than an ORM: it carries no query, filter, sort, or
+aggregate builder, so a caller reaching for typed querying builds that layer on top.
+`@orkestrel/database`'s SQLite driver is that layer, adapting these synchronous calls to its own
+asynchronous driver contract. Source: [`src/server`](../src/server). Surfaced through the
+`@src/server` barrel. Requires Node.js ^22.18 || >=24.4 (the releases carrying the `timeout`,
+`isTransaction`, and `readBigInts` options and `StatementSync.iterate`).
 
 ## Surface
 
@@ -21,46 +30,46 @@ db.prepare('SELECT name FROM users WHERE age >= ?').all([18]) // → [{ name: 'A
 
 ### Factories
 
-| API                    | Kind     | Summary                                                                 |
-| ---------------------- | -------- | ----------------------------------------------------------------------- |
-| `createSQLiteDatabase` | function | A synchronous SQLite database over `node:sqlite` (defaults `:memory:`). |
+| API                    | Kind     | Summary                                                                                      |
+| ---------------------- | -------- | -------------------------------------------------------------------------------------------- |
+| `createSQLiteDatabase` | function | Creates a synchronous SQLite database over `node:sqlite`, defaulting its path to `:memory:`. |
 
-### Entities
+### Classes
 
-| API               | Kind  | Summary                                                                                                                                                                |
-| ----------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SQLiteDatabase`  | class | The database — `connect` / `close` / `execute` / `prepare` / `transact` / `begin` / `commit` / `rollback` / `pragma`; readonly `path`, `connected`, and `transacting`. |
-| `SQLiteStatement` | class | A prepared statement — `execute` / `get` / `all` / `iterate`.                                                                                                          |
+| API               | Kind  | Summary                                                                                                                                                                                                            |
+| ----------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SQLiteDatabase`  | class | Implements `SQLiteDatabaseInterface` over a lazily opened `DatabaseSync` the instance owns, gating every operation on that connection and mapping each native fault to a `SQLiteError`.                            |
+| `SQLiteStatement` | class | Implements `SQLiteStatementInterface` over one compiled `StatementSync`, gating each call on its owning connection still being open and mapping every native fault, a mid-stream one included, to a `SQLiteError`. |
 
 ### Constants
 
-| API                 | Kind  | Summary                                                                                                    |
-| ------------------- | ----- | ---------------------------------------------------------------------------------------------------------- |
-| `SQLITE_CONSTRAINT` | const | SQLite result code (low byte `19`) `wrapError` masks the `errcode` against to flag a constraint violation. |
-| `SQLITE_BUSY`       | const | SQLite result code (low byte `5`) `wrapError` masks the `errcode` against to flag a locked-database fault. |
+| API                 | Kind  | Summary                                                                          |
+| ------------------- | ----- | -------------------------------------------------------------------------------- |
+| `SQLITE_CONSTRAINT` | const | Names the SQLite result code whose low byte, `19`, flags a constraint violation. |
+| `SQLITE_BUSY`       | const | Names the SQLite result code whose low byte, `5`, flags a locked-database fault. |
 
 ### Helpers and errors
 
-| API              | Kind     | Summary                                                                                                        |
-| ---------------- | -------- | -------------------------------------------------------------------------------------------------------------- |
-| `wrapError`      | function | The boundary conversion from a thrown native `node:sqlite` error to a typed `SQLiteError`.                     |
-| `bindParameters` | function | The normalization of `SQLiteParameters` to a native call's positional-spread or named shape.                   |
-| `SQLiteError`    | class    | A wrapper error carrying a machine-readable `code` (`CLOSED` / `CONSTRAINT` / `BUSY` / `INVALID` / `UNKNOWN`). |
-| `isSQLiteError`  | function | Whether a value is a `SQLiteError`.                                                                            |
+| API              | Kind     | Summary                                                                                                                                         |
+| ---------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `wrapError`      | function | Converts a thrown native `node:sqlite` error into a typed `SQLiteError` at the wrapper's one boundary.                                          |
+| `bindParameters` | function | Normalizes `SQLiteParameters` to the binding shape a native `StatementSync` call expects — a positional spread, or a single named record.       |
+| `SQLiteError`    | class    | Represents an error thrown by the SQLite wrapper, carrying a machine-readable `code` — `CLOSED`, `CONSTRAINT`, `BUSY`, `INVALID`, or `UNKNOWN`. |
+| `isSQLiteError`  | function | Checks whether a value is a `SQLiteError`.                                                                                                      |
 
 ### Types
 
-| API                        | Kind      | Summary                                                                                                                                       |
-| -------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SQLiteValue`              | type      | A value SQLite stores and returns natively (`null` / number / bigint / string / `Uint8Array`).                                                |
-| `SQLiteRow`                | type      | A result row — a record of column name to `SQLiteValue`.                                                                                      |
-| `SQLiteParameters`         | type      | Bind parameters — positional (an array) or named (a record).                                                                                  |
-| `SQLiteBinding`            | type      | The normalized binding shape a native call expects — `{ positional }` or `{ named }`.                                                         |
-| `SQLiteExecuteResult`      | interface | The outcome of a non-query statement (`changes` / `rowid`) — `number` (a count / rowid past 2^53 truncates, acceptable for keys and changes). |
-| `SQLiteErrorCode`          | type      | The machine-readable `SQLiteError` code union.                                                                                                |
-| `SQLiteDatabaseOptions`    | interface | Options for `createSQLiteDatabase` (`path` / `readonly` / `timeout` / `foreignKeys` / `bigints`).                                             |
-| `SQLiteStatementInterface` | interface | The prepared-statement contract.                                                                                                              |
-| `SQLiteDatabaseInterface`  | interface | The database contract.                                                                                                                        |
+| API                        | Kind      | Summary                                                                                                                                                                                                          |
+| -------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SQLiteValue`              | type      | Represents a value SQLite stores and returns natively — the SQL ↔ JS bridge over `null`, `number`, `bigint`, `string`, and `Uint8Array`.                                                                         |
+| `SQLiteRow`                | type      | Represents a result row — a record of column name to `SQLiteValue`.                                                                                                                                              |
+| `SQLiteParameters`         | type      | Represents the bind parameters for a prepared statement — positional (an array, bound to `?`) or named (a record, bound to bare `:name` placeholders).                                                           |
+| `SQLiteBinding`            | type      | Represents the normalized binding shape a native `StatementSync` call expects — `{ positional }` or `{ named }`, what `SQLiteParameters` become on the way into `node:sqlite`.                                   |
+| `SQLiteExecuteResult`      | interface | Represents the outcome of a non-query statement (`INSERT` / `UPDATE` / `DELETE` / DDL) — its `changes` and `rowid`.                                                                                              |
+| `SQLiteErrorCode`          | type      | Represents a machine-readable `SQLiteError` code.                                                                                                                                                                |
+| `SQLiteDatabaseOptions`    | interface | Represents the options for `createSQLiteDatabase` — `path`, `readonly`, `timeout`, `foreignKeys`, and `bigints`.                                                                                                 |
+| `SQLiteStatementInterface` | interface | Represents a prepared statement — the only way the wrapper runs SQL.                                                                                                                                             |
+| `SQLiteDatabaseInterface`  | interface | Represents the contract a synchronous SQLite database fulfills over `node:sqlite`'s `DatabaseSync` — prepared statements, transactions, and pragmas, every call returning a plain value rather than a `Promise`. |
 
 Row values arrive as the native `SQLiteValue` types and are handed back as-is — the precise per-row shape is imposed one layer up, by `@orkestrel/database`'s SQLite driver, through a contract, never re-narrowed here. Keys and columns are plain SQL: this layer moves `SQLiteValue`s in and out, and typing each row is the job of the layer above.
 
@@ -74,26 +83,26 @@ Each class implements its interface exactly — no extra public method. Every on
 
 #### `SQLiteDatabaseInterface`
 
-| Method     | Returns                    | Behavior                                                                                                   |
-| ---------- | -------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `connect`  | `void`                     | Open the underlying connection — lazy and idempotent; a second call is a no-op.                            |
-| `close`    | `void`                     | Release the connection; afterward every operation gates `CLOSED` until reconnect.                          |
-| `execute`  | `void`                     | Run one or more result-less SQL statements (DDL, pragmas) in a single call.                                |
-| `prepare`  | `SQLiteStatementInterface` | Compile SQL into a reusable prepared statement (the only path that runs queries).                          |
-| `transact` | `R`                        | Run `scope` between `BEGIN` and `COMMIT`, rolling the whole scope back and rethrowing on a throw.          |
-| `begin`    | `void`                     | Open a transaction (`BEGIN`); throws the native fault, a nested `BEGIN` included, as a `SQLiteError`.      |
-| `commit`   | `void`                     | Commit the open transaction (`COMMIT`); throws the native fault as a `SQLiteError` when none is open.      |
-| `rollback` | `void`                     | Roll back the open transaction (`ROLLBACK`); throws the native fault as a `SQLiteError` when none is open. |
-| `pragma`   | `SQLiteValue \| undefined` | Read a single PRAGMA, or set then read it when a `value` is passed.                                        |
+| Method     | Returns                    | Summary                                                                                                     |
+| ---------- | -------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `connect`  | `void`                     | Opens the underlying connection — lazy and idempotent, so a second call is a no-op.                         |
+| `close`    | `void`                     | Releases the connection; afterward every operation gates `CLOSED` until reconnect.                          |
+| `execute`  | `void`                     | Runs one or more result-less SQL statements (DDL, pragmas) in a single call.                                |
+| `prepare`  | `SQLiteStatementInterface` | Compiles SQL into a reusable prepared statement — the only path that runs queries.                          |
+| `transact` | `R`                        | Runs `scope` between `BEGIN` and `COMMIT`, rolling the whole scope back and rethrowing on a throw.          |
+| `begin`    | `void`                     | Opens a transaction (`BEGIN`); throws the native fault, a nested `BEGIN` included, as a `SQLiteError`.      |
+| `commit`   | `void`                     | Commits the open transaction (`COMMIT`); throws the native fault as a `SQLiteError` when none is open.      |
+| `rollback` | `void`                     | Rolls back the open transaction (`ROLLBACK`); throws the native fault as a `SQLiteError` when none is open. |
+| `pragma`   | `SQLiteValue \| undefined` | Reads a single PRAGMA, or sets then reads it when a `value` is passed.                                      |
 
 #### `SQLiteStatementInterface`
 
-| Method    | Returns                       | Behavior                                                                            |
-| --------- | ----------------------------- | ----------------------------------------------------------------------------------- |
-| `execute` | `SQLiteExecuteResult`         | Run a non-query (INSERT / UPDATE / DELETE / DDL); return its `changes` and `rowid`. |
-| `get`     | `SQLiteRow \| undefined`      | Run and return the first row, or `undefined` when none matched.                     |
-| `all`     | `readonly SQLiteRow[]`        | Run and return every matching row eagerly as an array.                              |
-| `iterate` | `IterableIterator<SQLiteRow>` | Run and stream rows lazily — one row materialized at a time, for large result sets. |
+| Method    | Returns                       | Summary                                                                                        |
+| --------- | ----------------------------- | ---------------------------------------------------------------------------------------------- |
+| `execute` | `SQLiteExecuteResult`         | Runs a non-query (`INSERT` / `UPDATE` / `DELETE` / DDL) and returns its `changes` and `rowid`. |
+| `get`     | `SQLiteRow \| undefined`      | Runs the statement and returns its first row, or `undefined` when none matched.                |
+| `all`     | `readonly SQLiteRow[]`        | Runs the statement and returns every matching row eagerly, as an array.                        |
+| `iterate` | `IterableIterator<SQLiteRow>` | Streams the matching rows lazily, one row materialized at a time, for a large result set.      |
 
 ## Contract
 
@@ -276,7 +285,7 @@ try {
 
 ## Tests
 
-- [`tests/guides.test.ts`](../tests/guides.test.ts) — the `## Surface` ↔ `src/server` bijection, the `## Methods` ↔ interface/class method parity, and the flagship fences of this guide transcribed and asserted against the values their comments claim.
+- [`tests/guides.test.ts`](../tests/guides.test.ts) — the `## Surface` ↔ `src/server` bijection, the `## Methods` ↔ interface/class method parity, and the equality gate: every `Summary` cell against its declaration's description paragraph, the titled `Connect, execute, and round-trip a row` fence against the `@example` block of that title (pinned so the titled pair cannot be retired silently), and the README pitch against this guide's tagline. It also runs the flagship fences and asserts the values their comments claim.
 - [`tests/src/server/SQLiteDatabase.test.ts`](../tests/src/server/SQLiteDatabase.test.ts) — the database in a real `:memory:` SQLite: connect / close lifecycle, the `CLOSED` gate, execute DDL, prepare round-trip, transact commit and rollback, pragma get + set, and the production options — `readonly` rejecting a write, `foreignKeys` enforcing a real FK violation, `timeout` surfacing `BUSY` from a genuinely locked second connection, and `[Symbol.dispose]` closing inside a `using` block.
 - [`tests/src/server/SQLiteStatement.test.ts`](../tests/src/server/SQLiteStatement.test.ts) — prepared statements: `execute`'s result, positional and named binding, `get` / `all` / `iterate`, an abandoned `iterate` releasing its read lock and finalizing without throwing, and a `CONSTRAINT` violation.
 - [`tests/src/server/helpers.test.ts`](../tests/src/server/helpers.test.ts) — the wrapper's boundary helpers as pure units: `wrapError` mapping a thrown value to a typed `SQLiteError` (real constraint fault → `CONSTRAINT`, real locked-database fault → `BUSY`, non-error → `UNKNOWN`, pass-through) and `bindParameters` normalizing parameters to the native binding shape (array → positional, record → named).

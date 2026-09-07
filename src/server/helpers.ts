@@ -11,10 +11,11 @@ import { SQLiteError } from './errors.js'
 // record). Both are pure.
 
 /**
- * Converts a thrown native `node:sqlite` error into a typed {@link SQLiteError}.
+ * Converts a thrown native `node:sqlite` error into a typed {@link SQLiteError} at the
+ * wrapper's one boundary.
  *
  * @remarks
- * The single boundary mapping for the wrapper. The thrown value arrives as
+ * The thrown value arrives as
  * `unknown` and is narrowed with `isObject` + the `in` operator (never `as`, and
  * not `isRecord` — a native `node:sqlite` error is an `Error` instance, so its
  * prototype fails the plain-record test) to read its `errcode` — a numeric SQLite
@@ -44,8 +45,8 @@ export function wrapError(error: unknown): SQLiteError {
 }
 
 /**
- * Normalizes {@link SQLiteParameters} to the binding shape a native `StatementSync`
- * call expects.
+ * Normalizes {@link SQLiteParameters} to the binding shape a native `StatementSync` call
+ * expects — a positional spread, or a single named record.
  *
  * @remarks
  * Positional parameters (an array) bind to `?` placeholders and are spread into

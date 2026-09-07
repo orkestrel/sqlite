@@ -9,22 +9,20 @@ import { SQLiteError } from './errors.js'
 import { bindParameters, wrapError } from './helpers.js'
 
 /**
- * Represents a prepared statement over `node:sqlite`'s `StatementSync` — the only way the
- * wrapper runs SQL.
+ * Implements `SQLiteStatementInterface` over one compiled `StatementSync`, gating each call
+ * on its owning connection still being open and mapping every native fault, a mid-stream one
+ * included, to a `SQLiteError`.
  *
  * @remarks
  * Created by `database.prepare(sql)`, which threads a liveness check (internal —
  * this constructor's second parameter is not part of the documented surface).
  * Bare named parameters are enabled on construction so a record's keys bind
- * without the SQL prefix character. Each method first gates on that liveness
- * check, throwing a `CLOSED` `SQLiteError` after the owning connection has been
- * closed — a statement prepared on a connection that is later closed and then
- * reconnected stays `CLOSED`; a fresh statement must be prepared on the new
- * connection. Each method then binds the optional parameters (an array spread
+ * without the SQL prefix character. A statement prepared on a connection that is later
+ * closed and then reconnected stays `CLOSED`; a fresh statement must be prepared on the new
+ * connection. Each method binds the optional parameters (an array spread
  * to `?` placeholders, a record passed as a single named object) and runs
- * synchronously, mapping any native fault to a `SQLiteError` — including a
- * mid-stream fault from `iterate`'s lazy native iterator, stepped inside its own
- * try/catch so a fault on a later row is mapped exactly like an eager one. Row
+ * synchronously — `iterate`'s lazy native iterator is stepped inside its own
+ * try/catch, so a fault on a later row is mapped exactly like an eager one. Row
  * values arrive as the native {@link SQLiteRow} types; the typed layer above
  * (`@orkestrel/database`'s SQLite driver) imposes a precise shape through a
  * contract rather than re-narrowing here.

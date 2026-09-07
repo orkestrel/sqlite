@@ -10,10 +10,11 @@ import type { SQLiteErrorCode } from './types.js'
 // and everything else is `UNKNOWN`.
 
 /**
- * Represents an error thrown by the SQLite wrapper.
+ * Represents an error thrown by the SQLite wrapper, carrying a machine-readable `code` —
+ * `CLOSED`, `CONSTRAINT`, `BUSY`, `INVALID`, or `UNKNOWN`.
  *
  * @remarks
- * Carries a {@link SQLiteErrorCode} and an optional `context` record (for example
+ * The `code` is a {@link SQLiteErrorCode}, beside an optional `context` record (for example
  * the native SQLite `errcode`). Construct it directly for the `CLOSED`
  * wrapper-lifecycle fault; the internal `wrapError` maps a native `node:sqlite`
  * error to the right code at the boundary. Narrow a caught value with

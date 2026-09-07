@@ -11,21 +11,21 @@ import { wrapError } from './helpers.js'
 import { SQLiteStatement } from './SQLiteStatement.js'
 
 /**
- * Represents a synchronous SQLite database over `node:sqlite`'s `DatabaseSync`.
+ * Implements `SQLiteDatabaseInterface` over a lazily opened `DatabaseSync` the instance
+ * owns, gating every operation on that connection and mapping each native fault to a
+ * `SQLiteError`.
  *
  * @remarks
- * Created by `createSQLiteDatabase`. It connects lazily (`connect` opens the
- * underlying `DatabaseSync`, idempotent) and every operation routes through a
- * private gate that throws a `CLOSED` `SQLiteError` before `connect` or after
- * `close`. `execute` runs result-less SQL; `prepare` compiles a `SQLiteStatement`;
+ * Created by `createSQLiteDatabase`. The gate throws a `CLOSED` fault before `connect` or
+ * after `close`, and `connect` itself is idempotent.
+ * `execute` runs result-less SQL; `prepare` compiles a `SQLiteStatement`;
  * `transact` wraps a scope in `BEGIN` / `COMMIT`, rolling back on a throw;
  * `begin` / `commit` / `rollback` expose those same primitives directly for a
  * long-lived or externally-driven transaction; `pragma` reads (or sets then
  * reads) one PRAGMA value — `name` is trusted
  * internal use only, never untrusted input, because pragma names cannot be bound
  * as parameters. `transacting` reports whether a transaction is open
- * (node:sqlite's `isTransaction`), `false` when not connected. A native fault
- * surfaces as a `SQLiteError` mapped at the boundary.
+ * (node:sqlite's `isTransaction`), `false` when not connected.
  */
 export class SQLiteDatabase implements SQLiteDatabaseInterface {
 	readonly #path: string

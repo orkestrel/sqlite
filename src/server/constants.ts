@@ -1,7 +1,7 @@
 // The wrapper's numeric SQLite result codes.
 
 /**
- * Names the SQLite result code for a constraint violation.
+ * Names the SQLite result code whose low byte, `19`, flags a constraint violation.
  *
  * @remarks
  * A native `errcode` packs the primary result in its low byte, with extended codes
@@ -11,7 +11,7 @@
 export const SQLITE_CONSTRAINT = 19
 
 /**
- * Names the SQLite result code for a locked-database fault.
+ * Names the SQLite result code whose low byte, `5`, flags a locked-database fault.
  *
  * @remarks
  * A native `errcode` packs the primary result in its low byte, with extended codes
