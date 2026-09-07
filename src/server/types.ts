@@ -79,7 +79,7 @@ export type SQLiteErrorCode = 'CLOSED' | 'CONSTRAINT' | 'BUSY' | 'INVALID' | 'UN
  * `readBigInts`) — writes already accept `bigint` regardless of this option,
  * so a stored integer beyond `Number.MAX_SAFE_INTEGER` throws on read unless
  * `bigints` is enabled; enabling it returns EVERY integer column as `bigint`,
- * not just out-of-range ones, closing that read/write asymmetry at the cost of
+ * not out-of-range ones alone, closing that read/write asymmetry at the cost of
  * `bigint` values for ordinary small integers too.
  */
 export interface SQLiteDatabaseOptions {

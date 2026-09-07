@@ -1,6 +1,6 @@
 {
 	"name": "@orkestrel/sqlite",
-	"version": "0.0.10",
+	"version": "0.0.11",
 	"description": "A typed, synchronous SQLite wrapper for the @orkestrel line — prepared statements over node:sqlite. Part of the @orkestrel line.",
 	"keywords": [
 		"database",
@@ -67,7 +67,8 @@
 		"test:probe": "vitest run --config vite.config.ts --no-cache --reporter=verbose --project probe",
 		"test:bench": "vitest bench --config vite.config.ts --no-cache --project probe",
 		"prepack": "npm run build",
-		"test:setup": "vitest run --config vite.config.ts --no-cache --reporter=dot --project setup"
+		"test:setup": "vitest run --config vite.config.ts --no-cache --reporter=dot --project setup",
+		"docs": "node --experimental-strip-types scripts/docs.ts"
 	},
 	"dependencies": {
 		"@orkestrel/contract": "^0.0.16"

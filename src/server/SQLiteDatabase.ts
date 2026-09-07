@@ -89,7 +89,7 @@ export class SQLiteDatabase implements SQLiteDatabaseInterface {
 			const database = this.#require()
 			// Capture this specific connection instance — a later `close()` clears
 			// `#database`, and a subsequent `connect()` creates a NEW instance, so
-			// identity comparison (not just "is a connection open") keeps a statement
+			// identity comparison (not "is a connection open" alone) keeps a statement
 			// prepared on the OLD connection permanently CLOSED after reconnect.
 			return new SQLiteStatement(database.prepare(sql), () => this.#database !== database)
 		} catch (error) {
