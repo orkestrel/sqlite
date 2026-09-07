@@ -11,9 +11,9 @@ import { wrapError } from './helpers.js'
 import { SQLiteStatement } from './SQLiteStatement.js'
 
 /**
- * Implements `SQLiteDatabaseInterface` over a lazily opened `DatabaseSync` the instance
+ * Implements {@link SQLiteDatabaseInterface} over a lazily opened `DatabaseSync` the instance
  * owns, gating every operation on that connection and mapping each native fault to a
- * `SQLiteError`.
+ * {@link SQLiteError}.
  *
  * @remarks
  * Created by `createSQLiteDatabase`. The gate throws a `CLOSED` fault before `connect` or

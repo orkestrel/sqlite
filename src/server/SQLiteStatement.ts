@@ -9,9 +9,9 @@ import { SQLiteError } from './errors.js'
 import { bindParameters, wrapError } from './helpers.js'
 
 /**
- * Implements `SQLiteStatementInterface` over one compiled `StatementSync`, gating each call
- * on its owning connection still being open and mapping every native fault, a mid-stream one
- * included, to a `SQLiteError`.
+ * Implements {@link SQLiteStatementInterface} over one compiled `StatementSync`, gating each
+ * call on its owning connection still being open and mapping every native fault, a mid-stream
+ * one included, to a {@link SQLiteError}.
  *
  * @remarks
  * Created by `database.prepare(sql)`, which threads a liveness check (internal —

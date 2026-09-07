@@ -11,12 +11,12 @@
 // package's driver) through a contract, never re-narrowed here.
 
 /**
- * Represents a value SQLite stores and returns natively — the SQL ↔ JS bridge over `null`,
- * `number`, `bigint`, `string`, and `Uint8Array`.
+ * Represents a value SQLite stores and returns natively — the bridge between SQLite's storage
+ * classes and their JS types.
  *
  * @remarks
- * `node:sqlite` maps `NULL` / `INTEGER` / `REAL` / `TEXT` / `BLOB` to exactly
- * these JS types (integers arrive as `number`, or `bigint` only past 2^53).
+ * `node:sqlite` maps `NULL` / `INTEGER` / `REAL` / `TEXT` / `BLOB` to exactly the
+ * JS types this union names (integers arrive as `number`, or `bigint` only past 2^53).
  */
 export type SQLiteValue = null | number | bigint | string | Uint8Array
 
@@ -30,9 +30,8 @@ export type SQLiteRow = Record<string, SQLiteValue>
 export type SQLiteParameters = readonly SQLiteValue[] | Readonly<Record<string, SQLiteValue>>
 
 /**
- * Represents the normalized binding shape a native `StatementSync` call expects —
- * `{ positional }` or `{ named }`, what {@link SQLiteParameters} become on the way into
- * `node:sqlite`.
+ * Represents the normalized binding shape a native `StatementSync` call expects — what
+ * {@link SQLiteParameters} become on the way into `node:sqlite`.
  *
  * @remarks
  * `positional` carries an array spread into the native call against `?`
@@ -46,8 +45,7 @@ export type SQLiteBinding =
 	| { readonly named: Readonly<Record<string, SQLiteValue>> }
 
 /**
- * Represents the outcome of a non-query statement (`INSERT` / `UPDATE` / `DELETE` / DDL) — its
- * `changes` and `rowid`.
+ * Represents the outcome of a non-query statement (`INSERT` / `UPDATE` / `DELETE` / DDL).
  *
  * @remarks
  * Each member is a `number`, so a count or a rowid past 2^53 truncates — acceptable for the
@@ -73,8 +71,8 @@ export interface SQLiteExecuteResult {
 export type SQLiteErrorCode = 'CLOSED' | 'CONSTRAINT' | 'BUSY' | 'INVALID' | 'UNKNOWN'
 
 /**
- * Represents the options for `createSQLiteDatabase` — `path`, `readonly`, `timeout`,
- * `foreignKeys`, and `bigints`.
+ * Represents the options for opening a SQLite connection, accepted by the
+ * `createSQLiteDatabase` function and the `SQLiteDatabase` constructor.
  *
  * @remarks
  * `path` is the database file path, or the special name `':memory:'` for an
@@ -89,7 +87,7 @@ export type SQLiteErrorCode = 'CLOSED' | 'CONSTRAINT' | 'BUSY' | 'INVALID' | 'UN
  * omitted. `bigints` reads `INTEGER` columns back as `bigint` (native
  * `readBigInts`) — writes already accept `bigint` regardless of this option,
  * so a stored integer beyond `Number.MAX_SAFE_INTEGER` throws on read unless
- * `bigints` is enabled; enabling it returns EVERY integer column as `bigint`,
+ * `bigints` is enabled; enabling it returns every integer column as `bigint`,
  * not out-of-range ones alone, closing that read/write asymmetry at the cost of
  * `bigint` values for ordinary small integers too.
  */
