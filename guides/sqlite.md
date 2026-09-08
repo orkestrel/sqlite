@@ -14,6 +14,8 @@ asynchronous driver contract. Source: [`src/server`](../src/server). Surfaced th
 
 ## Surface
 
+Creates the database, connects, creates a table, then inserts and queries a row:
+
 ```ts
 import { createSQLiteDatabase } from '@orkestrel/sqlite'
 
@@ -44,10 +46,12 @@ db.prepare('SELECT name FROM users WHERE age >= ?').all([18]) // → [{ name: 'A
 
 ### Constants
 
-| API                 | Kind  | Summary                                                                          |
-| ------------------- | ----- | -------------------------------------------------------------------------------- |
-| `SQLITE_CONSTRAINT` | const | Names the SQLite result code whose low byte, `19`, flags a constraint violation. |
-| `SQLITE_BUSY`       | const | Names the SQLite result code whose low byte, `5`, flags a locked-database fault. |
+A `Shape` cell holds the constant's declared type.
+
+| API                 | Kind  | Shape    | Summary                                                                          |
+| ------------------- | ----- | -------- | -------------------------------------------------------------------------------- |
+| `SQLITE_CONSTRAINT` | const | `number` | Names the SQLite result code whose low byte, `19`, flags a constraint violation. |
+| `SQLITE_BUSY`       | const | `number` | Names the SQLite result code whose low byte, `5`, flags a locked-database fault. |
 
 ### Helpers and errors
 
@@ -127,6 +131,8 @@ These invariants hold across `src/server` ↔ `sqlite.md`:
 
 ### Connect, execute, and round-trip a row
 
+Connects, creates a table, inserts a row, and reads it back by id:
+
 ```ts
 import { createSQLiteDatabase } from '@orkestrel/sqlite'
 
@@ -139,6 +145,8 @@ db.prepare('SELECT * FROM users WHERE id = ?').get(['u1']) // { id: 'u1', name: 
 ```
 
 ### Positional and named parameters
+
+Binds parameters positionally or by name:
 
 ```ts
 // Positional — an array bound to `?` placeholders:
@@ -154,6 +162,8 @@ db.prepare('INSERT INTO users VALUES (:id, :name, :age)').execute({
 
 ### Reading: get, all, iterate
 
+Reads a single row, every row, or a lazy stream of rows:
+
 ```ts
 db.prepare('SELECT name FROM users WHERE id = ?').get(['u1']) // first row or undefined
 db.prepare('SELECT * FROM users ORDER BY age').all() // every row
@@ -161,6 +171,8 @@ for (const row of db.prepare('SELECT id FROM users').iterate()) handle(row) // l
 ```
 
 ### Atomic transactions
+
+Runs several statements inside one committed-or-rolled-back scope:
 
 ```ts
 db.transact(() => {
@@ -170,6 +182,8 @@ db.transact(() => {
 ```
 
 ### Long-lived transactions with begin / commit / rollback
+
+Opens, holds across awaited caller code, then commits or rolls back a transaction with the primitives directly:
 
 ```ts
 // A transaction that must span async caller code (a request handle held open
@@ -191,6 +205,8 @@ if (!db.transacting) db.begin()
 
 ### Branching on a typed fault
 
+Catches a native fault and branches on its `code`:
+
 ```ts
 import { createSQLiteDatabase, isSQLiteError } from '@orkestrel/sqlite'
 
@@ -205,6 +221,8 @@ try {
 
 ### Pragmas
 
+Reads a PRAGMA, then sets and reads it:
+
 ```ts
 db.pragma('user_version') // read → 0
 db.pragma('user_version', 7) // set then read → 7 (a cheap on-disk schema-version counter)
@@ -213,12 +231,16 @@ db.pragma('journal_mode', 'WAL') // set then read → 'wal' — durable write-ah
 
 ### Closing a connection
 
+Closes the connection and reads `connected` afterward:
+
 ```ts
 db.close() // releases the connection; every operation gates CLOSED until reconnect
 db.connected // false
 ```
 
 ### Production options: readonly, timeout, foreignKeys
+
+Opens a connection with `readonly`, `timeout`, `foreignKeys`, and `bigints`:
 
 ```ts
 // Open an existing file read-only — a write throws (the file must already exist):
@@ -238,6 +260,8 @@ const exact = createSQLiteDatabase({ bigints: true })
 
 ### Disposing with `using`
 
+Releases the connection automatically at the end of a `using` block:
+
 ```ts
 {
 	using db = createSQLiteDatabase()
@@ -247,6 +271,8 @@ const exact = createSQLiteDatabase({ bigints: true })
 ```
 
 ### Retrying on BUSY
+
+Catches a `BUSY` fault from a locked database to retry:
 
 ```ts
 import { isSQLiteError } from '@orkestrel/sqlite'
@@ -261,6 +287,8 @@ try {
 ```
 
 ### The boundary helpers directly
+
+Calls the boundary helpers directly to normalize parameters and wrap a native throw:
 
 ```ts
 import { bindParameters, wrapError } from '@orkestrel/sqlite'
