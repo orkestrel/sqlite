@@ -1,7 +1,7 @@
 import type { SQLiteBinding, SQLiteParameters, SQLiteValue } from './types.js'
-import { isArray, isObject } from '@orkestrel/contract'
+import { isArray, isError, isNumber, isObject } from '@orkestrel/contract'
 import { SQLITE_BUSY, SQLITE_CONSTRAINT } from './constants.js'
-import { SQLiteError } from './errors.js'
+import { isSQLiteError, SQLiteError } from './errors.js'
 
 // The wrapper's boundary helpers, shared by `SQLiteDatabase` and `SQLiteStatement`:
 // `wrapError` maps a thrown native `node:sqlite` error to a typed `SQLiteError`
@@ -29,12 +29,10 @@ import { SQLiteError } from './errors.js'
  * @returns The equivalent `SQLiteError`
  */
 export function wrapError(error: unknown): SQLiteError {
-	if (error instanceof SQLiteError) return error
+	if (isSQLiteError(error)) return error
 	const errcode =
-		isObject(error) && 'errcode' in error && typeof error.errcode === 'number'
-			? error.errcode
-			: undefined
-	const message = error instanceof Error ? error.message : 'Unknown SQLite error'
+		isObject(error) && 'errcode' in error && isNumber(error.errcode) ? error.errcode : undefined
+	const message = isError(error) ? error.message : 'Unknown SQLite error'
 	const code =
 		errcode !== undefined && (errcode & 0xff) === SQLITE_CONSTRAINT
 			? 'CONSTRAINT'

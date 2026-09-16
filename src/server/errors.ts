@@ -1,4 +1,5 @@
 import type { SQLiteErrorCode } from './types.js'
+import { isInstance } from '@orkestrel/contract'
 
 // Errors for the SQLite wrapper. A single `SQLiteError` carries a
 // machine-readable `code` mapped from the native `node:sqlite` fault at the
@@ -50,5 +51,5 @@ export class SQLiteError extends Error {
  * @returns True if `value` is a `SQLiteError`; false otherwise
  */
 export function isSQLiteError(value: unknown): value is SQLiteError {
-	return value instanceof SQLiteError
+	return isInstance(value, SQLiteError)
 }
