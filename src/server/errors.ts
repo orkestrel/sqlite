@@ -1,5 +1,5 @@
 import type { SQLiteErrorCode } from './types.js'
-import { holds, INTRINSICS, isInstance, isObject } from '@orkestrel/contract'
+import { holds, INTRINSICS, isFunction, isInstance, isObject } from '@orkestrel/contract'
 
 // Errors for the SQLite wrapper. A single `SQLiteError` carries a
 // machine-readable `code` mapped from the native `node:sqlite` fault at the
@@ -68,7 +68,7 @@ export function isSQLiteError(value: unknown): value is SQLiteError {
 				code === 'BUSY' ||
 				code === 'INVALID' ||
 				code === 'UNKNOWN') &&
-			(context === undefined || isObject(context))
+			(context === undefined || isObject(context) || isFunction(context))
 		)
 	})
 }

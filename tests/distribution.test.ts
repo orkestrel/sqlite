@@ -80,6 +80,8 @@ class DerivedError extends imported.SQLiteError {}
 const subclass = new DerivedError('CLOSED', 'subclass')
 subclass.name = 'DerivedError'
 const brand = Symbol.for('@orkestrel/sqlite.SQLiteError')
+const entries = [imported, required, copied]
+assert.equal(new Set(entries.map((entry) => entry.SQLiteError)).size, entries.length)
 for (const entry of [imported, required, copied]) {
 	for (const other of [imported, required, copied]) {
 		const error = new other.SQLiteError('CLOSED', 'closed', { connection: 'test' })
