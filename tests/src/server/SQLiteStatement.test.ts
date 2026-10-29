@@ -1,22 +1,15 @@
-import type { SQLiteDatabaseInterface, SQLiteRow } from '@src/server'
+import type { SQLiteRow } from '@src/server'
 import { createSQLiteDatabase } from '@src/server'
 import { createScratch } from '@orkestrel/test/server'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { seedUsers, sqliteErrorCode } from '../../setupServer.js'
+import { createTestDatabase, seedUsers, sqliteErrorCode } from '../../setupServer.js'
 
 // SQLiteStatement over a real in-memory database, with no mocks — execute's
 // result shape, positional (`?`) and named (a record) parameter binding, get /
 // all / iterate, an abandoned stream releasing its read lock and finalizing
 // without throwing, and a constraint violation surfacing as a CONSTRAINT
 // SQLiteError. A fresh seeded database per test keeps each deterministic.
-
-function createTestDatabase(): SQLiteDatabaseInterface {
-	const db = createSQLiteDatabase()
-	db.connect()
-	db.execute('CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT, age INTEGER)')
-	return db
-}
 
 describe('SQLiteStatement — execute', () => {
 	it('returns the change count and the inserted rowid', () => {

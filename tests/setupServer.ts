@@ -3,7 +3,15 @@
 
 import type { SQLiteDatabaseInterface } from '@src/server'
 import { DatabaseSync } from 'node:sqlite'
-import { isSQLiteError } from '@src/server'
+import { createSQLiteDatabase, isSQLiteError } from '@src/server'
+
+/** Creates a connected in-memory database with an empty users table. */
+export function createTestDatabase(): SQLiteDatabaseInterface {
+	const db = createSQLiteDatabase()
+	db.connect()
+	db.execute('CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT, age INTEGER)')
+	return db
+}
 
 // Run `action`, returning a thrown `SQLiteError`'s `code` (or a sentinel) — so an
 // error code is asserted unconditionally, never inside a conditional `expect`.
