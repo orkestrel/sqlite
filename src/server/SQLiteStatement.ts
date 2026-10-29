@@ -5,6 +5,7 @@ import type {
 	SQLiteRow,
 	SQLiteStatementInterface,
 } from './types.js'
+import { attempt } from '@orkestrel/contract'
 import { SQLiteError } from './errors.js'
 import { bindParameters, wrapError } from './helpers.js'
 
@@ -77,17 +78,16 @@ export class SQLiteStatement implements SQLiteStatementInterface {
 
 	iterate(parameters?: SQLiteParameters): IterableIterator<SQLiteRow> {
 		this.#require()
-		let native: IterableIterator<SQLiteRow>
 		try {
 			const bound = bindParameters(parameters)
-			native =
+			const native =
 				'named' in bound
 					? this.#statement.iterate(bound.named)
 					: this.#statement.iterate(...bound.positional)
+			return this.#stream(native)
 		} catch (error) {
 			throw wrapError(error)
 		}
-		return this.#stream(native)
 	}
 
 	// The single liveness gate — every operation requires the owning connection
@@ -115,12 +115,9 @@ export class SQLiteStatement implements SQLiteStatementInterface {
 	*#stream(native: IterableIterator<SQLiteRow>): IterableIterator<SQLiteRow> {
 		try {
 			for (;;) {
-				let result: IteratorResult<SQLiteRow>
-				try {
-					result = native.next()
-				} catch (error) {
-					throw wrapError(error)
-				}
+				const step = attempt(() => native.next())
+				if (!step.success) throw wrapError(step.error)
+				const result = step.value
 				if (result.done === true) return
 				yield result.value
 			}

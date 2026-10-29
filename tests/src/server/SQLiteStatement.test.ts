@@ -2,7 +2,7 @@ import type { SQLiteDatabaseInterface, SQLiteRow } from '@src/server'
 import { createSQLiteDatabase } from '@src/server'
 import { createScratch } from '@orkestrel/test/server'
 import { join } from 'node:path'
-import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
 import { seedUsers, sqliteErrorCode } from '../../setupServer.js'
 
 // SQLiteStatement over a real in-memory database, with no mocks — execute's
@@ -11,16 +11,16 @@ import { seedUsers, sqliteErrorCode } from '../../setupServer.js'
 // without throwing, and a constraint violation surfacing as a CONSTRAINT
 // SQLiteError. A fresh seeded database per test keeps each deterministic.
 
-let db: SQLiteDatabaseInterface
-
-beforeEach(() => {
-	db = createSQLiteDatabase()
+function createTestDatabase(): SQLiteDatabaseInterface {
+	const db = createSQLiteDatabase()
 	db.connect()
 	db.execute('CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT, age INTEGER)')
-})
+	return db
+}
 
 describe('SQLiteStatement — execute', () => {
 	it('returns the change count and the inserted rowid', () => {
+		using db = createTestDatabase()
 		const result = db.prepare('INSERT INTO users VALUES (?, ?, ?)').execute(['u1', 'Ada', 36])
 		expect(result.changes).toBe(1)
 		expect(typeof result.rowid).toBe('number')
@@ -28,6 +28,7 @@ describe('SQLiteStatement — execute', () => {
 	})
 
 	it('counts every row an UPDATE touches', () => {
+		using db = createTestDatabase()
 		seedUsers(db)
 		const result = db.prepare('UPDATE users SET age = age + 1').execute()
 		expect(result.changes).toBe(3)
@@ -36,11 +37,13 @@ describe('SQLiteStatement — execute', () => {
 
 describe('SQLiteStatement — parameter binding', () => {
 	it('binds positional parameters to ? placeholders', () => {
+		using db = createTestDatabase()
 		db.prepare('INSERT INTO users VALUES (?, ?, ?)').execute(['u1', 'Ada', 36])
 		expect(db.prepare('SELECT name FROM users WHERE id = ?').get(['u1'])).toEqual({ name: 'Ada' })
 	})
 
 	it('binds named parameters from a bare-keyed record', () => {
+		using db = createTestDatabase()
 		db.prepare('INSERT INTO users VALUES (:id, :name, :age)').execute({
 			id: 'u2',
 			name: 'Lin',
@@ -54,18 +57,21 @@ describe('SQLiteStatement — parameter binding', () => {
 
 describe('SQLiteStatement — get / all / iterate', () => {
 	it('get returns the first row, or undefined on a miss', () => {
+		using db = createTestDatabase()
 		seedUsers(db)
 		expect(db.prepare('SELECT id FROM users WHERE id = ?').get(['u1'])).toEqual({ id: 'u1' })
 		expect(db.prepare('SELECT id FROM users WHERE id = ?').get(['nope'])).toBeUndefined()
 	})
 
 	it('all returns every matching row', () => {
+		using db = createTestDatabase()
 		seedUsers(db)
 		const rows = db.prepare('SELECT id FROM users ORDER BY id').all()
 		expect(rows).toEqual([{ id: 'u1' }, { id: 'u2' }, { id: 'u3' }])
 	})
 
 	it('iterate yields rows lazily', () => {
+		using db = createTestDatabase()
 		seedUsers(db)
 		const iterator = db.prepare('SELECT id FROM users ORDER BY id').iterate()
 		const ids: SQLiteRow[] = []
@@ -74,6 +80,7 @@ describe('SQLiteStatement — get / all / iterate', () => {
 	})
 
 	it('maps a mid-stream native fault (a later row) to a SQLiteError instead of throwing raw', () => {
+		using db = createTestDatabase()
 		db.execute('CREATE TABLE t (id INTEGER PRIMARY KEY, value INTEGER)')
 		db.prepare('INSERT INTO t VALUES (?, ?)').execute([1, 1])
 		db.prepare('INSERT INTO t VALUES (?, ?)').execute([2, 9007199254740993n])
@@ -121,6 +128,7 @@ describe('SQLiteStatement — abandoned iterate', () => {
 	// database inside the loop is the reachable way to finalize an iterator whose
 	// connection is already gone.
 	it('finalizes without throwing when a caller closes the database inside the loop', () => {
+		using db = createTestDatabase()
 		seedUsers(db)
 		const statement = db.prepare('SELECT id FROM users ORDER BY id')
 		const seen: SQLiteRow[] = []
@@ -138,6 +146,7 @@ describe('SQLiteStatement — abandoned iterate', () => {
 
 describe('SQLiteStatement — constraints', () => {
 	it('surfaces a primary-key violation as a CONSTRAINT SQLiteError', () => {
+		using db = createTestDatabase()
 		db.prepare('INSERT INTO users VALUES (?, ?, ?)').execute(['u1', 'Ada', 36])
 		expect(
 			sqliteErrorCode(() =>
@@ -149,6 +158,7 @@ describe('SQLiteStatement — constraints', () => {
 
 describe('SQLiteStatement — closed connection', () => {
 	it('gates execute / get / all / iterate with CLOSED after the owning connection is closed', () => {
+		using db = createTestDatabase()
 		const statement = db.prepare('SELECT id FROM users')
 		db.close()
 		expect(sqliteErrorCode(() => statement.execute())).toBe('CLOSED')
@@ -158,6 +168,7 @@ describe('SQLiteStatement — closed connection', () => {
 	})
 
 	it('stays CLOSED for a statement prepared on the old connection after reconnect', () => {
+		using db = createTestDatabase()
 		const statement = db.prepare('SELECT id FROM users')
 		db.close()
 		db.connect()

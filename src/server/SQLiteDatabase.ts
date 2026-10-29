@@ -5,7 +5,7 @@ import type {
 	SQLiteValue,
 } from './types.js'
 import { DatabaseSync } from 'node:sqlite'
-import { isPromiseLike } from '@orkestrel/contract'
+import { attempt, isPromiseLike } from '@orkestrel/contract'
 import { SQLiteError } from './errors.js'
 import { wrapError } from './helpers.js'
 import { SQLiteStatement } from './SQLiteStatement.js'
@@ -99,10 +99,8 @@ export class SQLiteDatabase implements SQLiteDatabaseInterface {
 
 	transact<R>(scope: () => R): R {
 		this.begin()
-		let result: R
-		try {
-			result = scope()
-		} catch (error) {
+		const outcome = attempt(scope)
+		if (!outcome.success) {
 			// A ROLLBACK fault (for example the database was closed by the scope) must
 			// never mask the scope's own error — the caller needs to see why it failed.
 			try {
@@ -110,8 +108,9 @@ export class SQLiteDatabase implements SQLiteDatabaseInterface {
 			} catch {
 				// swallowed — the original `error` is what the caller needs to see
 			}
-			throw error
+			throw outcome.error
 		}
+		const result = outcome.value
 		if (isPromiseLike(result)) {
 			// An async scope returns before its awaited work runs, so committing here
 			// would commit prematurely — roll back and reject instead of silently

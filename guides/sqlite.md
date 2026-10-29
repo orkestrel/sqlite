@@ -62,6 +62,12 @@ A `Shape` cell holds the constant's declared type.
 | `SQLiteError`    | class    | Represents an error thrown by the SQLite wrapper, carrying a machine-readable `code` — `CLOSED`, `CONSTRAINT`, `BUSY`, `INVALID`, or `UNKNOWN`. |
 | `isSQLiteError`  | function | Checks whether a value is a `SQLiteError`.                                                                                                      |
 
+`isSQLiteError` recognizes the own identity brand and declared members across package copies
+and module formats. It accepts subclass instances without requiring their name and refuses
+unbranded look-alikes, transparent proxies, and objects carrying only the brand. The constructor
+stores the error itself under `Symbol.for('@orkestrel/sqlite.SQLiteError')` as a non-enumerable,
+non-writable own property.
+
 ### Types
 
 A `Shape` cell holds an interface's data members as bare names in braces, `?` marking an optional member and `plus` introducing its call-signature members, and a type alias's own type literal with a union's arms escaped as `\|`.

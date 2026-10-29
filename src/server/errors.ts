@@ -1,5 +1,5 @@
 import type { SQLiteErrorCode } from './types.js'
-import { isInstance } from '@orkestrel/contract'
+import { holds, INTRINSICS, isInstance, isObject } from '@orkestrel/contract'
 
 // Errors for the SQLite wrapper. A single `SQLiteError` carries a
 // machine-readable `code` mapped from the native `node:sqlite` fault at the
@@ -38,6 +38,7 @@ export class SQLiteError extends Error {
 
 	constructor(code: SQLiteErrorCode, message: string, context?: Readonly<Record<string, unknown>>) {
 		super(message)
+		INTRINSICS.define(this, Symbol.for('@orkestrel/sqlite.SQLiteError'), { value: this })
 		this.name = 'SQLiteError'
 		this.code = code
 		if (context !== undefined) this.context = context
@@ -47,9 +48,27 @@ export class SQLiteError extends Error {
 /**
  * Checks whether a value is a {@link SQLiteError}.
  *
+ * @remarks
+ * Recognizes the own identity brand and declared members across package copies.
+ * Accepts subclasses without requiring their name; rejects transparent proxies.
+ *
  * @param value - The value to test
  * @returns True if `value` is a `SQLiteError`; false otherwise
  */
 export function isSQLiteError(value: unknown): value is SQLiteError {
-	return isInstance(value, SQLiteError)
+	return holds(() => {
+		if (!isInstance(value, Error) || INTRINSICS.prototype(value) === Error.prototype) return false
+		if (INTRINSICS.describe(value, Symbol.for('@orkestrel/sqlite.SQLiteError'))?.value !== value)
+			return false
+		const code: unknown = INTRINSICS.reflect.read(value, 'code')
+		const context: unknown = INTRINSICS.reflect.read(value, 'context')
+		return (
+			(code === 'CLOSED' ||
+				code === 'CONSTRAINT' ||
+				code === 'BUSY' ||
+				code === 'INVALID' ||
+				code === 'UNKNOWN') &&
+			(context === undefined || isObject(context))
+		)
+	})
 }

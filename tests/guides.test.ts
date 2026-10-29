@@ -2,7 +2,7 @@
 // this repo's own `guides/README.md` manifest. The constants that follow are this
 // package's own, as is the executed section that closes the file.
 
-import type { SQLiteDatabaseInterface, SQLiteRow } from '@src/server'
+import type { SQLiteRow } from '@src/server'
 import { GuideCommand } from '@orkestrel/guide/server'
 import { readInventory } from '@orkestrel/test/server'
 import { createVitest } from 'vitest/node'
@@ -38,7 +38,7 @@ await new GuideCommand({
 }).execute(async ({ files, report, rows }) => {
 	const { isRecord, parseJSON } = await import('@orkestrel/contract')
 	const { computeSymbolKey, findMissingSymbols } = await import('@orkestrel/guide')
-	const { requireValue } = await import('@orkestrel/test')
+	const { captureError, requireValue } = await import('@orkestrel/test')
 	const { createScratch } = await import('@orkestrel/test/server')
 	const { bindParameters, createSQLiteDatabase, isSQLiteError, wrapError } =
 		await import('@src/server')
@@ -294,12 +294,11 @@ await new GuideCommand({
 		})
 
 		it('disposes the connection at the end of a using block', () => {
-			let released: SQLiteDatabaseInterface | undefined
+			const released = createSQLiteDatabase()
 			{
-				using db = createSQLiteDatabase()
+				using db = released
 				db.connect()
 				db.execute('CREATE TABLE t (id INTEGER)')
-				released = db
 				expect(db.connected).toBe(true)
 			}
 			expect(released?.connected).toBe(false)
@@ -311,12 +310,8 @@ await new GuideCommand({
 
 			const db = createSQLiteDatabase()
 			db.connect()
-			let wrapped: unknown
-			try {
-				db.execute('not sql')
-			} catch (error) {
-				wrapped = wrapError(error)
-			}
+			const error = captureError(() => db.execute('not sql'))
+			const wrapped = error === undefined ? undefined : wrapError(error)
 			expect(isSQLiteError(wrapped)).toBe(true)
 			db.close()
 		})

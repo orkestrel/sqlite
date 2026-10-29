@@ -309,11 +309,10 @@ describe('SQLiteDatabase — production options', () => {
 	})
 
 	it('closes the connection through Symbol.dispose in a using block', () => {
-		let db: ReturnType<typeof createSQLiteDatabase> | undefined
+		const db = createSQLiteDatabase()
 		{
-			using scoped = createSQLiteDatabase()
+			using scoped = db
 			scoped.connect()
-			db = scoped
 			expect(scoped.connected).toBe(true)
 		}
 		expect(db?.connected).toBe(false)
