@@ -33,13 +33,13 @@ db.prepare('SELECT name FROM users WHERE age >= ?').all([18]) // → [{ name: 'A
 
 ### Factories
 
-| API                    | Kind     | Summary                                                                                      |
+| Name                   | Kind     | Summary                                                                                      |
 | ---------------------- | -------- | -------------------------------------------------------------------------------------------- |
 | `createSQLiteDatabase` | function | Creates a synchronous SQLite database over `node:sqlite`, defaulting its path to `:memory:`. |
 
 ### Classes
 
-| API               | Kind  | Summary                                                                                                                                                                                                            |
+| Name              | Kind  | Summary                                                                                                                                                                                                            |
 | ----------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `SQLiteDatabase`  | class | Implements `SQLiteDatabaseInterface` over a lazily opened `DatabaseSync` the instance owns, gating every operation on that connection and mapping each native fault to a `SQLiteError`.                            |
 | `SQLiteStatement` | class | Implements `SQLiteStatementInterface` over one compiled `StatementSync`, gating each call on its owning connection still being open and mapping every native fault, a mid-stream one included, to a `SQLiteError`. |
@@ -48,14 +48,14 @@ db.prepare('SELECT name FROM users WHERE age >= ?').all([18]) // → [{ name: 'A
 
 A `Shape` cell holds the constant's declared type.
 
-| API                 | Kind  | Shape    | Summary                                                                          |
+| Name                | Kind  | Shape    | Summary                                                                          |
 | ------------------- | ----- | -------- | -------------------------------------------------------------------------------- |
 | `SQLITE_CONSTRAINT` | const | `number` | Names the SQLite result code whose low byte, `19`, flags a constraint violation. |
 | `SQLITE_BUSY`       | const | `number` | Names the SQLite result code whose low byte, `5`, flags a locked-database fault. |
 
 ### Helpers and errors
 
-| API              | Kind     | Summary                                                                                                                                         |
+| Name             | Kind     | Summary                                                                                                                                         |
 | ---------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `wrapError`      | function | Converts a thrown native `node:sqlite` error into a typed `SQLiteError` at the wrapper's one boundary.                                          |
 | `bindParameters` | function | Normalizes `SQLiteParameters` to the binding shape a native `StatementSync` call expects — a positional spread, or a single named record.       |
@@ -72,7 +72,7 @@ non-writable own property.
 
 A `Shape` cell holds an interface's data members as bare names in braces, `?` marking an optional member and `plus` introducing its call-signature members, and a type alias's own type literal with a union's arms escaped as `\|`.
 
-| API                        | Kind      | Shape                                                                                                                                 | Summary                                                                                                                                                                                                          |
+| Name                       | Kind      | Shape                                                                                                                                 | Summary                                                                                                                                                                                                          |
 | -------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SQLiteValue`              | type      | `null \| number \| bigint \| string \| Uint8Array`                                                                                    | Represents a value SQLite stores and returns natively — the bridge between SQLite's storage classes and their JS types.                                                                                          |
 | `SQLiteRow`                | type      | `Record<string, SQLiteValue>`                                                                                                         | Represents a result row — a record of column name to `SQLiteValue`.                                                                                                                                              |
