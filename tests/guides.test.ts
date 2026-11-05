@@ -293,15 +293,13 @@ await new GuideCommand({
 			expect(db.connected).toBe(false)
 		})
 
-		it('disposes the connection at the end of a using block', () => {
+		it('disposes the connection through Symbol.dispose, which a using block calls', () => {
 			const released = createSQLiteDatabase()
-			{
-				using db = released
-				db.connect()
-				db.execute('CREATE TABLE t (id INTEGER)')
-				expect(db.connected).toBe(true)
-			}
-			expect(released?.connected).toBe(false)
+			released.connect()
+			released.execute('CREATE TABLE t (id INTEGER)')
+			expect(released.connected).toBe(true)
+			released[Symbol.dispose]()
+			expect(released.connected).toBe(false)
 		})
 
 		it('binds parameters and wraps a native throw through the boundary helpers', () => {
