@@ -1,5 +1,14 @@
 import type { SQLiteErrorCode } from './types.js'
-import { holds, INTRINSICS, isFunction, isInstance, isObject } from '@orkestrel/contract'
+import {
+	holds,
+	INTRINSICS,
+	isFunction,
+	isDefined,
+	isInstance,
+	isObject,
+	isUndefined,
+} from '@orkestrel/contract'
+import { isSQLiteErrorCode } from './validators.js'
 
 // Errors for the SQLite wrapper. A single `SQLiteError` carries a
 // machine-readable `code` mapped from the native `node:sqlite` fault at the
@@ -23,12 +32,17 @@ import { holds, INTRINSICS, isFunction, isInstance, isObject } from '@orkestrel/
  *
  * @example
  * ```ts
+ * import { createSQLiteDatabase, isSQLiteError } from '@orkestrel/sqlite'
+ *
+ * const db = createSQLiteDatabase()
+ * db.connect()
+ * db.execute('CREATE TABLE users (id TEXT PRIMARY KEY)')
+ * const insert = db.prepare('INSERT INTO users (id) VALUES (?)')
+ * insert.execute(['u1'])
  * try {
- * 	statement.execute({ id: 'u1' })
+ * 	insert.execute(['u1'])
  * } catch (error) {
- * 	if (isSQLiteError(error) && error.code === 'CONSTRAINT') {
- * 		// a UNIQUE / PRIMARY KEY violation
- * 	}
+ * 	isSQLiteError(error) && error.code // 'CONSTRAINT'
  * }
  * ```
  */
@@ -41,7 +55,7 @@ export class SQLiteError extends Error {
 		INTRINSICS.define(this, Symbol.for('@orkestrel/sqlite.SQLiteError'), { value: this })
 		this.name = 'SQLiteError'
 		this.code = code
-		if (context !== undefined) this.context = context
+		if (isDefined(context)) this.context = context
 	}
 }
 
@@ -54,21 +68,26 @@ export class SQLiteError extends Error {
  *
  * @param value - The value to test
  * @returns True if `value` is a `SQLiteError`; false otherwise
+ *
+ * @example
+ * ```ts
+ * import { isSQLiteError, SQLiteError } from '@orkestrel/sqlite'
+ *
+ * isSQLiteError(new SQLiteError('CLOSED', 'Database is not connected')) // true
+ * isSQLiteError(new Error('Database is not connected')) // false
+ * ```
  */
 export function isSQLiteError(value: unknown): value is SQLiteError {
 	return holds(() => {
-		if (!isInstance(value, Error) || INTRINSICS.prototype(value) === Error.prototype) return false
+		const intrinsic = INTRINSICS.error
+		if (!isInstance(value, intrinsic) || INTRINSICS.prototype(value) === intrinsic.prototype)
+			return false
 		if (INTRINSICS.describe(value, Symbol.for('@orkestrel/sqlite.SQLiteError'))?.value !== value)
 			return false
 		const code: unknown = INTRINSICS.reflect.read(value, 'code')
 		const context: unknown = INTRINSICS.reflect.read(value, 'context')
 		return (
-			(code === 'CLOSED' ||
-				code === 'CONSTRAINT' ||
-				code === 'BUSY' ||
-				code === 'INVALID' ||
-				code === 'UNKNOWN') &&
-			(context === undefined || isObject(context) || isFunction(context))
+			isSQLiteErrorCode(code) && (isUndefined(context) || isObject(context) || isFunction(context))
 		)
 	})
 }

@@ -1,4 +1,5 @@
 import { createSQLiteDatabase, SQLiteError, bindParameters, wrapError } from '@src/server'
+import { createRecorder } from '@orkestrel/test'
 import { createScratch } from '@orkestrel/test/server'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -32,8 +33,8 @@ describe('wrapError', () => {
 		const wrapped = wrapError(captureNativeConstraintError())
 		expect(wrapped).toBeInstanceOf(SQLiteError)
 		expect(wrapped.code).toBe('CONSTRAINT')
-		// The native errcode is preserved in context (low byte 19 = SQLITE_CONSTRAINT).
-		expect(typeof wrapped.context?.errcode).toBe('number')
+		// A duplicate primary key raises the extended SQLITE_CONSTRAINT_PRIMARYKEY, kept in context.
+		expect(wrapped.context).toEqual({ errcode: 1555 })
 	})
 
 	it('maps a non-error input to UNKNOWN', () => {
@@ -42,6 +43,45 @@ describe('wrapError', () => {
 		expect(wrapped.code).toBe('UNKNOWN')
 		expect(wrapped.message).toBe('Unknown SQLite error')
 		expect(wrapped.context).toBeUndefined() // no errcode to carry
+	})
+
+	it('maps a value whose errcode cannot be read to UNKNOWN instead of throwing', () => {
+		const unreadable = Object.defineProperty(new Error('database is locked'), 'errcode', {
+			get: () => {
+				throw new Error('errcode is unreadable')
+			},
+		})
+		const wrapped = wrapError(unreadable)
+		expect(wrapped.code).toBe('UNKNOWN')
+		expect(wrapped.message).toBe('database is locked')
+		expect(wrapped.context).toBeUndefined()
+	})
+
+	it('maps an error whose message cannot be read to UNKNOWN instead of throwing', () => {
+		const unreadable = Object.defineProperty(new Error('database is locked'), 'message', {
+			get: () => {
+				throw new Error('message is unreadable')
+			},
+		})
+		const wrapped = wrapError(unreadable)
+		expect(wrapped.code).toBe('UNKNOWN')
+		expect(wrapped.message).toBe('unknown failure')
+	})
+
+	it('renders an empty Error message as unknown failure', () => {
+		expect(wrapError(new Error('')).message).toBe('unknown failure')
+	})
+
+	it('reads a foreign errcode once', () => {
+		const recorder = createRecorder<[]>()
+		const native = Object.defineProperty(new Error('database is locked'), 'errcode', {
+			get: () => {
+				recorder.handler()
+				return 5
+			},
+		})
+		expect(wrapError(native).code).toBe('BUSY')
+		expect(recorder.count).toBe(1)
 	})
 
 	it('preserves a plain Error message under UNKNOWN', () => {

@@ -1,11 +1,11 @@
 import type { StatementSync } from 'node:sqlite'
 import type {
 	SQLiteExecuteResult,
-	SQLiteParameters,
+	SQLiteParameterSet,
 	SQLiteRow,
 	SQLiteStatementInterface,
 } from './types.js'
-import { attempt } from '@orkestrel/contract'
+import { attempt, isFailure } from '@orkestrel/contract'
 import { SQLiteError } from './errors.js'
 import { bindParameters, wrapError } from './helpers.js'
 
@@ -22,11 +22,23 @@ import { bindParameters, wrapError } from './helpers.js'
  * closed and then reconnected stays `CLOSED`; a fresh statement must be prepared on the new
  * connection. Each method binds the optional parameters (an array spread
  * to `?` placeholders, a record passed as a single named object) and runs
- * synchronously — `iterate`'s lazy native iterator is stepped inside its own
- * try/catch, so a fault on a later row is mapped exactly like an eager one. Row
+ * synchronously — `iterate`'s lazy native iterator is stepped inside contract's
+ * `attempt`, so a fault on a later row is mapped exactly like an eager one. Row
  * values arrive as the native {@link SQLiteRow} types; the typed layer above
  * (`@orkestrel/database`'s SQLite driver) imposes a precise shape through a
  * contract rather than re-narrowing here.
+ *
+ * @example
+ * ```ts
+ * import { createSQLiteDatabase } from '@orkestrel/sqlite'
+ *
+ * const db = createSQLiteDatabase()
+ * db.connect()
+ * const statement = db.prepare('SELECT ? AS answer')
+ * statement.all([42]) // [{ answer: 42 }]
+ * db.close()
+ * statement.all([42]) // throws a CLOSED SQLiteError
+ * ```
  */
 export class SQLiteStatement implements SQLiteStatementInterface {
 	readonly #statement: StatementSync
@@ -38,7 +50,7 @@ export class SQLiteStatement implements SQLiteStatementInterface {
 		this.#statement.setAllowBareNamedParameters(true)
 	}
 
-	execute(parameters?: SQLiteParameters): SQLiteExecuteResult {
+	execute(parameters?: SQLiteParameterSet): SQLiteExecuteResult {
 		this.#require()
 		try {
 			const bound = bindParameters(parameters)
@@ -52,7 +64,7 @@ export class SQLiteStatement implements SQLiteStatementInterface {
 		}
 	}
 
-	get(parameters?: SQLiteParameters): SQLiteRow | undefined {
+	get(parameters?: SQLiteParameterSet): SQLiteRow | undefined {
 		this.#require()
 		try {
 			const bound = bindParameters(parameters)
@@ -64,7 +76,7 @@ export class SQLiteStatement implements SQLiteStatementInterface {
 		}
 	}
 
-	all(parameters?: SQLiteParameters): readonly SQLiteRow[] {
+	all(parameters?: SQLiteParameterSet): readonly SQLiteRow[] {
 		this.#require()
 		try {
 			const bound = bindParameters(parameters)
@@ -76,7 +88,7 @@ export class SQLiteStatement implements SQLiteStatementInterface {
 		}
 	}
 
-	iterate(parameters?: SQLiteParameters): IterableIterator<SQLiteRow> {
+	iterate(parameters?: SQLiteParameterSet): IterableIterator<SQLiteRow> {
 		this.#require()
 		try {
 			const bound = bindParameters(parameters)
@@ -102,7 +114,7 @@ export class SQLiteStatement implements SQLiteStatementInterface {
 	}
 
 	// Pulls from the native lazy iterator one step at a time, each step inside
-	// its own try/catch — a mid-stream native fault (for example an out-of-range
+	// contract's attempt — a mid-stream native fault (for example an out-of-range
 	// integer on a later row) is mapped to a SQLiteError exactly like an eager
 	// fault, instead of escaping raw from the caller's for...of. The `finally`
 	// reaches the native iterator's own `return` on every exit after the first
@@ -111,23 +123,18 @@ export class SQLiteStatement implements SQLiteStatementInterface {
 	// statement keeps its read transaction open until something else resets it.
 	// Finalizing can itself fault — a caller that closed the connection inside the
 	// loop reaches that — and the language propagates a fault from `return` out of
-	// a `break`, so the call is guarded.
+	// a `break`, so `attempt` contains the call and discards its fault.
 	*#stream(native: IterableIterator<SQLiteRow>): IterableIterator<SQLiteRow> {
 		try {
 			for (;;) {
 				const step = attempt(() => native.next())
-				if (!step.success) throw wrapError(step.error)
+				if (isFailure(step)) throw wrapError(step.error)
 				const result = step.value
 				if (result.done === true) return
 				yield result.value
 			}
 		} finally {
-			try {
-				native.return?.()
-			} catch {
-				// swallowed — a fault finalizing the native iterator must not escape raw
-				// from the caller's `break` or early `return`
-			}
+			attempt(() => native.return?.())
 		}
 	}
 }

@@ -1,5 +1,7 @@
-import { isPragmaName, isPragmaValue } from '@src/server'
-import { describe, expect, it } from 'vitest'
+import type { GuardType } from '@orkestrel/contract'
+import type { SQLiteErrorCode } from '@src/server'
+import { isPragmaName, isPragmaValue, isSQLiteErrorCode } from '@src/server'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
 	ADMITTED_PRAGMA_NAMES,
 	ADMITTED_PRAGMA_VALUES,
@@ -60,5 +62,26 @@ describe('pragma guard totality', () => {
 		expect(isPragmaName({ toString: () => 'journal_mode' })).toBe(false)
 		expect(isPragmaValue({ toString: () => 'WAL' })).toBe(false)
 		expect(isPragmaValue({ valueOf: () => 7 })).toBe(false)
+	})
+})
+
+describe('isSQLiteErrorCode', () => {
+	it('guards exactly the declared SQLiteErrorCode union', () => {
+		expectTypeOf<GuardType<typeof isSQLiteErrorCode>>().toEqualTypeOf<SQLiteErrorCode>()
+	})
+
+	it.for(['CLOSED', 'CONSTRAINT', 'BUSY', 'INVALID', 'UNKNOWN'])('admits %s', (code) => {
+		expect(isSQLiteErrorCode(code)).toBe(true)
+	})
+
+	it.for(['closed', 'LOCKED', 'ERR_SQLITE_ERROR', ''])('refuses %j', (code) => {
+		expect(isSQLiteErrorCode(code)).toBe(false)
+	})
+
+	it('refuses a numeric result code and every other non-string', () => {
+		expect(isSQLiteErrorCode(19)).toBe(false)
+		expect(isSQLiteErrorCode(undefined)).toBe(false)
+		expect(isSQLiteErrorCode(null)).toBe(false)
+		expect(isSQLiteErrorCode({ code: 'CLOSED' })).toBe(false)
 	})
 })

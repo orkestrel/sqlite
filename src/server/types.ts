@@ -12,21 +12,45 @@
  * @remarks
  * `node:sqlite` maps `NULL` / `INTEGER` / `REAL` / `TEXT` / `BLOB` to exactly the
  * JS types this union names (integers arrive as `number`, or `bigint` only past 2^53).
+ *
+ * @example
+ * ```ts
+ * import type { SQLiteValue } from '@orkestrel/sqlite'
+ *
+ * const values: readonly SQLiteValue[] = [null, 36, 2n ** 63n - 1n, 'Ada', new Uint8Array([1])]
+ * ```
  */
 export type SQLiteValue = null | number | bigint | string | Uint8Array
 
-/** Represents a result row — a record of column name to {@link SQLiteValue}. */
+/**
+ * Represents a result row — a record of column name to {@link SQLiteValue}.
+ *
+ * @example
+ * ```ts
+ * import type { SQLiteRow } from '@orkestrel/sqlite'
+ *
+ * const row: SQLiteRow = { id: 'u1', name: 'Ada', age: 36 }
+ * ```
+ */
 export type SQLiteRow = Record<string, SQLiteValue>
 
 /**
- * Represents the bind parameters for a prepared statement — positional (an array, bound to `?`)
- * or named (a record, bound to bare `:name` placeholders).
+ * Represents the bind values one prepared-statement call takes — positional (an array, bound to
+ * `?`) or named (a record, bound to bare `:name` placeholders).
+ *
+ * @example
+ * ```ts
+ * import type { SQLiteParameterSet } from '@orkestrel/sqlite'
+ *
+ * const positional: SQLiteParameterSet = ['u1', 'Ada', 36]
+ * const named: SQLiteParameterSet = { id: 'u1', name: 'Ada', age: 36 }
+ * ```
  */
-export type SQLiteParameters = readonly SQLiteValue[] | Readonly<Record<string, SQLiteValue>>
+export type SQLiteParameterSet = readonly SQLiteValue[] | Readonly<Record<string, SQLiteValue>>
 
 /**
- * Represents the normalized binding shape a native `StatementSync` call expects — what
- * {@link SQLiteParameters} become on the way into `node:sqlite`.
+ * Represents the normalized binding shape a native `StatementSync` call expects — what a
+ * {@link SQLiteParameterSet} value becomes on the way into `node:sqlite`.
  *
  * @remarks
  * `positional` carries an array spread into the native call against `?`
@@ -34,6 +58,15 @@ export type SQLiteParameters = readonly SQLiteValue[] | Readonly<Record<string, 
  * to bare `:name` placeholders. The discriminant is the present member, so a
  * consumer branches with `'named' in binding` and stays typed against the native
  * overloads without an assertion.
+ *
+ * @example
+ * ```ts
+ * import type { SQLiteBinding } from '@orkestrel/sqlite'
+ * import { bindParameters } from '@orkestrel/sqlite'
+ *
+ * const binding: SQLiteBinding = bindParameters({ id: 'u1' }) // { named: { id: 'u1' } }
+ * 'named' in binding // true
+ * ```
  */
 export type SQLiteBinding =
 	| { readonly positional: readonly SQLiteValue[] }
@@ -46,6 +79,21 @@ export type SQLiteBinding =
  * Each member is a `number`, so a count or a rowid past 2^53 truncates — acceptable for the
  * keys and change counts this layer hands back, and a caller needing exact large keys reads
  * them back through a `bigints` connection instead.
+ *
+ * @example
+ * ```ts
+ * import type { SQLiteExecuteResult } from '@orkestrel/sqlite'
+ * import { createSQLiteDatabase } from '@orkestrel/sqlite'
+ *
+ * const db = createSQLiteDatabase()
+ * db.connect()
+ * db.execute('CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT)')
+ * const result: SQLiteExecuteResult = db.prepare('INSERT INTO users VALUES (?, ?)').execute([
+ * 	'u1',
+ * 	'Ada',
+ * ])
+ * result // { changes: 1, rowid: 1 }
+ * ```
  */
 export interface SQLiteExecuteResult {
 	readonly changes: number
@@ -62,6 +110,14 @@ export interface SQLiteExecuteResult {
  * `'INVALID'` is the wrapper's own invalid-argument fault, refused before any SQL
  * runs, and stays distinct from `'UNKNOWN'`, which carries an unclassified native
  * `node:sqlite` fault.
+ *
+ * @example
+ * ```ts
+ * import type { SQLiteErrorCode } from '@orkestrel/sqlite'
+ * import { SQLiteError } from '@orkestrel/sqlite'
+ *
+ * const code: SQLiteErrorCode = new SQLiteError('BUSY', 'database is locked').code // 'BUSY'
+ * ```
  */
 export type SQLiteErrorCode = 'CLOSED' | 'CONSTRAINT' | 'BUSY' | 'INVALID' | 'UNKNOWN'
 
@@ -85,6 +141,15 @@ export type SQLiteErrorCode = 'CLOSED' | 'CONSTRAINT' | 'BUSY' | 'INVALID' | 'UN
  * `bigints` is enabled; enabling it returns every integer column as `bigint`,
  * not out-of-range ones alone, closing that read/write asymmetry at the cost of
  * `bigint` values for ordinary small integers too.
+ *
+ * @example
+ * ```ts
+ * import type { SQLiteDatabaseOptions } from '@orkestrel/sqlite'
+ * import { createSQLiteDatabase } from '@orkestrel/sqlite'
+ *
+ * const options: SQLiteDatabaseOptions = { path: ':memory:', timeout: 2000, foreignKeys: true }
+ * createSQLiteDatabase(options).path // ':memory:'
+ * ```
  */
 export interface SQLiteDatabaseOptions {
 	readonly path?: string
@@ -106,16 +171,27 @@ export interface SQLiteDatabaseOptions {
  * native fault surfaces as a {@link SQLiteError}; a fault raised while finalizing
  * an `iterate` stream on any exit after its first step is discarded instead, so
  * leaving the loop never throws.
+ *
+ * @example
+ * ```ts
+ * import type { SQLiteStatementInterface } from '@orkestrel/sqlite'
+ * import { createSQLiteDatabase } from '@orkestrel/sqlite'
+ *
+ * const db = createSQLiteDatabase()
+ * db.connect()
+ * const statement: SQLiteStatementInterface = db.prepare('SELECT ? AS answer')
+ * statement.get([42]) // { answer: 42 }
+ * ```
  */
 export interface SQLiteStatementInterface {
 	/** Runs a non-query (`INSERT` / `UPDATE` / `DELETE` / DDL) and returns its `changes` and `rowid`. */
-	execute(parameters?: SQLiteParameters): SQLiteExecuteResult
+	execute(parameters?: SQLiteParameterSet): SQLiteExecuteResult
 	/** Runs the statement and returns its first row, or `undefined` when none matched. */
-	get(parameters?: SQLiteParameters): SQLiteRow | undefined
+	get(parameters?: SQLiteParameterSet): SQLiteRow | undefined
 	/** Runs the statement and returns every matching row eagerly, as an array. */
-	all(parameters?: SQLiteParameters): readonly SQLiteRow[]
+	all(parameters?: SQLiteParameterSet): readonly SQLiteRow[]
 	/** Streams the matching rows lazily, one row materialized at a time, for a large result set. */
-	iterate(parameters?: SQLiteParameters): IterableIterator<SQLiteRow>
+	iterate(parameters?: SQLiteParameterSet): IterableIterator<SQLiteRow>
 }
 
 /**
@@ -139,6 +215,17 @@ export interface SQLiteStatementInterface {
  * `transact(scope)` remains the right tool whenever the whole transaction fits in one
  * synchronous scope. `[Symbol.dispose]` closes the connection (same as `close`), enabling
  * `using` to release it deterministically at the end of a block.
+ *
+ * @example
+ * ```ts
+ * import type { SQLiteDatabaseInterface } from '@orkestrel/sqlite'
+ * import { createSQLiteDatabase } from '@orkestrel/sqlite'
+ *
+ * const db: SQLiteDatabaseInterface = createSQLiteDatabase()
+ * db.connected // false
+ * db.connect()
+ * db.connected // true
+ * ```
  */
 export interface SQLiteDatabaseInterface {
 	readonly path: string

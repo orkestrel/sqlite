@@ -5,7 +5,14 @@ import type {
 	SQLiteValue,
 } from './types.js'
 import { DatabaseSync } from 'node:sqlite'
-import { attempt, isPromiseLike, preview } from '@orkestrel/contract'
+import {
+	attempt,
+	isDefined,
+	isFailure,
+	isPromiseLike,
+	isUndefined,
+	preview,
+} from '@orkestrel/contract'
 import { SQLiteError } from './errors.js'
 import { wrapError } from './helpers.js'
 import { SQLiteStatement } from './SQLiteStatement.js'
@@ -26,6 +33,15 @@ import { isPragmaName, isPragmaValue } from './validators.js'
  * reads) one PRAGMA value after {@link isPragmaName} and {@link isPragmaValue} admit
  * its input. `transacting` reports whether a transaction is open
  * (node:sqlite's `isTransaction`), `false` when not connected.
+ *
+ * @example
+ * ```ts
+ * import { SQLiteDatabase } from '@orkestrel/sqlite'
+ *
+ * const db = new SQLiteDatabase({ path: ':memory:' })
+ * db.connect()
+ * db.pragma('user_version') // 0
+ * ```
  */
 export class SQLiteDatabase implements SQLiteDatabaseInterface {
 	readonly #path: string
@@ -48,7 +64,7 @@ export class SQLiteDatabase implements SQLiteDatabaseInterface {
 	}
 
 	get connected(): boolean {
-		return this.#database !== undefined
+		return isDefined(this.#database)
 	}
 
 	get transacting(): boolean {
@@ -56,7 +72,7 @@ export class SQLiteDatabase implements SQLiteDatabaseInterface {
 	}
 
 	connect(): void {
-		if (this.#database === undefined) {
+		if (isUndefined(this.#database)) {
 			this.#database = new DatabaseSync(this.#path, {
 				readOnly: this.#readonly,
 				timeout: this.#timeout,
@@ -100,26 +116,17 @@ export class SQLiteDatabase implements SQLiteDatabaseInterface {
 	transact<R>(scope: () => R): R {
 		this.begin()
 		const outcome = attempt(scope)
-		if (!outcome.success) {
-			// A ROLLBACK fault (for example the database was closed by the scope) must
-			// never mask the scope's own error — the caller needs to see why it failed.
-			try {
-				this.rollback()
-			} catch {
-				// swallowed — the original `error` is what the caller needs to see
-			}
+		if (isFailure(outcome)) {
+			// A ROLLBACK fault, such as a connection the scope closed, never masks the scope's own error.
+			attempt(() => this.rollback())
 			throw outcome.error
 		}
 		const result = outcome.value
 		if (isPromiseLike(result)) {
 			// An async scope returns before its awaited work runs, so committing here
 			// would commit prematurely — roll back and reject instead of silently
-			// racing the caller's still-pending work.
-			try {
-				this.rollback()
-			} catch {
-				// swallowed — the guard error below is what the caller needs to see
-			}
+			// racing the caller's still-pending work. A ROLLBACK fault never masks the refusal.
+			attempt(() => this.rollback())
 			throw new SQLiteError(
 				'INVALID',
 				'transact(scope) requires a synchronous scope — an async or Promise-returning scope cannot commit or roll back before its awaited work runs; use begin() / commit() / rollback() directly for a transaction that spans async caller code',
@@ -150,21 +157,21 @@ export class SQLiteDatabase implements SQLiteDatabaseInterface {
 				{ pragma: preview(name) },
 			)
 		}
-		if (value !== undefined && !isPragmaValue(value)) {
+		if (isDefined(value) && !isPragmaValue(value)) {
 			throw new SQLiteError(
 				'INVALID',
 				`SQLite pragma ${preview(name)} takes a 32-bit signed integer or a keyword of ASCII letters and underscores, not ${preview(value)}`,
 				{ pragma: preview(name), value: preview(value) },
 			)
 		}
-		if (value !== undefined) this.execute('PRAGMA ' + name + ' = ' + value)
+		if (isDefined(value)) this.execute('PRAGMA ' + name + ' = ' + value)
 		const row = this.prepare('PRAGMA ' + name).get()
 		return row ? Object.values(row)[0] : undefined
 	}
 
 	// The single connection gate — every operation requires an open database.
 	#require(): DatabaseSync {
-		if (this.#database === undefined) {
+		if (isUndefined(this.#database)) {
 			throw new SQLiteError('CLOSED', 'Database is not connected — call connect() first')
 		}
 		return this.#database

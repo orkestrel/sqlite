@@ -1,5 +1,5 @@
 import type { Guard } from '@orkestrel/contract'
-import { andOf, boundsOf, isInteger, stringOf, unionOf } from '@orkestrel/contract'
+import { andOf, boundsOf, isInteger, literalOf, stringOf, unionOf } from '@orkestrel/contract'
 
 /**
  * Checks whether a value is a pragma name `pragma` can write into `PRAGMA` text: ASCII
@@ -46,3 +46,17 @@ export const isPragmaValue: Guard<string | number> = unionOf(
 	andOf(isInteger, boundsOf(-2147483648, 2147483647)),
 	stringOf({ pattern: /^[A-Za-z_]+$/ }),
 )
+
+/**
+ * Checks whether a value is a code a {@link SQLiteError} carries: `CLOSED`, `CONSTRAINT`, `BUSY`,
+ * `INVALID`, or `UNKNOWN`.
+ *
+ * @example
+ * ```ts
+ * import { isSQLiteErrorCode } from '@orkestrel/sqlite'
+ *
+ * isSQLiteErrorCode('BUSY') // true
+ * isSQLiteErrorCode('LOCKED') // false
+ * ```
+ */
+export const isSQLiteErrorCode = literalOf('CLOSED', 'CONSTRAINT', 'BUSY', 'INVALID', 'UNKNOWN')
