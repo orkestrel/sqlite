@@ -25,6 +25,105 @@ export function sqliteErrorCode(action: () => unknown): string {
 	}
 }
 
+/** Pairs one pragma input with the label a case title names it by. */
+export interface PragmaCase<T> {
+	readonly label: string
+	readonly input: T
+}
+
+/**
+ * Lists pragma names outside the name syntax, each a form that carries more than one bare name
+ * into `PRAGMA` text.
+ */
+export const REFUSED_PRAGMA_NAMES: ReadonlyArray<PragmaCase<string>> = Object.freeze([
+	{ label: 'an empty name', input: '' },
+	{ label: 'a chained statement', input: 'user_version; CREATE TABLE intruders (id INTEGER)' },
+	{ label: 'an assignment inside the name', input: 'user_version = 9' },
+	{ label: 'a schema-qualified name', input: 'main.user_version' },
+	{ label: 'a function-argument form', input: 'table_info(users)' },
+	{ label: 'a quoted name', input: '"user_version"' },
+	{ label: 'a leading space', input: ' user_version' },
+	{ label: 'a trailing space', input: 'user_version ' },
+	{ label: 'a trailing newline', input: 'user_version\n' },
+	{ label: 'a lone equals sign', input: 'user_version=9' },
+	{ label: 'a lone semicolon', input: 'user_version;' },
+	{ label: 'a lone hyphen', input: 'user_version-' },
+	{ label: 'a NUL character', input: 'user_version\u0000' },
+	{ label: 'a leading digit', input: '2user_version' },
+	{ label: 'a non-ASCII letter', input: 'üser_version' },
+])
+
+/**
+ * Lists pragma values outside the value syntax: neither a 32-bit signed integer nor a keyword of ASCII
+ * letters and underscores.
+ */
+export const REFUSED_PRAGMA_VALUES: ReadonlyArray<PragmaCase<string | number>> = Object.freeze([
+	{ label: 'a chained pragma', input: 'WAL; PRAGMA case_sensitive_like = ON' },
+	{ label: 'a chained statement', input: '0; CREATE TABLE intruders (id INTEGER)' },
+	{ label: 'a lone semicolon', input: 'WAL;' },
+	{ label: 'a lone equals sign', input: 'a=b' },
+	{ label: 'a comment opener', input: 'WAL/*' },
+	{ label: 'a trailing space', input: 'WAL ' },
+	{ label: 'a trailing newline', input: 'WAL\n' },
+	{ label: 'a quoted literal', input: "'WAL'" },
+	{ label: 'an empty string', input: '' },
+	{ label: 'a numeric string', input: '7' },
+	{ label: 'a keyword with a digit', input: 'WAL2' },
+	{ label: 'NaN', input: Number.NaN },
+	{ label: 'positive infinity', input: Number.POSITIVE_INFINITY },
+	{ label: 'negative infinity', input: Number.NEGATIVE_INFINITY },
+	{ label: 'an exponent-form number', input: 1e21 },
+	{ label: 'a positive fraction', input: 1.5 },
+	{ label: 'a negative fraction', input: -0.5 },
+	{ label: 'the smallest positive number', input: Number.MIN_VALUE },
+	{ label: 'the first unsafe integer', input: 2 ** 53 },
+	{ label: 'the first unsafe negative integer', input: -(2 ** 53) },
+	{ label: 'one past the largest 32-bit integer', input: 2147483648 },
+	{ label: 'one past the smallest 32-bit integer', input: -2147483649 },
+	{ label: 'a 40-bit integer', input: 2 ** 40 },
+	{ label: 'the largest number', input: Number.MAX_VALUE },
+])
+
+/** Lists pragma names inside the name syntax, an underscore opening and a digit included. */
+export const ADMITTED_PRAGMA_NAMES: readonly string[] = Object.freeze([
+	'user_version',
+	'journal_mode',
+	'Journal_Mode',
+	'_hidden',
+	'a1',
+	'Z',
+])
+
+/** Lists pragma values inside the value syntax: keywords and 32-bit signed integers, both ends included. */
+export const ADMITTED_PRAGMA_VALUES: ReadonlyArray<string | number> = Object.freeze([
+	'WAL',
+	'memory',
+	'snake_case',
+	'_',
+	0,
+	-0,
+	7,
+	-2000,
+	2147483647,
+	-2147483648,
+])
+
+/** Lists inputs that are neither a string nor a number, each refused by both pragma guards. */
+export const UNTYPED_PRAGMA_INPUTS: readonly unknown[] = Object.freeze([
+	undefined,
+	null,
+	true,
+	false,
+	7n,
+	Symbol('journal_mode'),
+	{},
+	[],
+	['WAL'],
+	Object('WAL'),
+	Object(7),
+	new Date(0),
+])
+
 /**
  * Seeds the deterministic users into an open `users` table.
  *

@@ -1,14 +1,9 @@
-// The lean server-native SQLite surface — a typed, synchronous wrapper over
-// `node:sqlite`'s `DatabaseSync` / `StatementSync`. It exposes SQLite's native
-// power (prepared statements, transactions, pragmas) and nothing the core
-// database layer can already express: there is **no** query / filter / sort /
-// aggregate builder here (that is the one core engine, running over `scan`), the
-// same discipline as the IndexedDB wrapper. `@orkestrel/database`'s SQLite driver
-// is built on this wrapper; standalone server code can use it directly. Types are
-// the source of truth.
+// A typed, synchronous wrapper over `node:sqlite`'s `DatabaseSync` and `StatementSync`:
+// prepared statements, transactions, and pragmas, with no query builder. `@orkestrel/database`'s
+// SQLite driver builds on it, and that package's `DriverInterface` native-first rule decides
+// which part of a read runs here as SQL. Types are the source of truth.
 //
-// Values are SQLite's native types, narrowed at the typed layer above (that
-// package's driver) through a contract, never re-narrowed here.
+// Values are SQLite's native types, narrowed one layer up by that driver through a contract.
 
 /**
  * Represents a value SQLite stores and returns natively — the bridge between SQLite's storage
@@ -133,9 +128,10 @@ export interface SQLiteStatementInterface {
  * because `node:sqlite` is; `@orkestrel/database`'s SQLite driver adapts it to that
  * package's asynchronous driver contract. Connects lazily — `connect` opens the underlying
  * `DatabaseSync` (idempotent), and every operation requires an open connection, throwing a
- * `CLOSED` {@link SQLiteError} before `connect` or after `close`. `pragma`'s `name` is
- * trusted internal use only, never untrusted input, because pragma names cannot be bound as
- * parameters. `transacting` reports whether a transaction is open on this connection —
+ * `CLOSED` {@link SQLiteError} before `connect` or after `close`. `pragma` refuses a name
+ * outside {@link isPragmaName} and a value outside {@link isPragmaValue} with an `INVALID`
+ * {@link SQLiteError} before any SQL runs, because neither can be bound as a parameter.
+ * `transacting` reports whether a transaction is open on this connection —
  * node:sqlite's `isTransaction` (wraps `sqlite3_get_autocommit()`); `false` when not
  * connected. `begin` / `commit` / `rollback` are the same `BEGIN` / `COMMIT` / `ROLLBACK`
  * primitives `transact` composes internally, exposed directly for a long-lived or
@@ -171,7 +167,7 @@ export interface SQLiteDatabaseInterface {
 	commit(): void
 	/** Rolls back the open transaction (`ROLLBACK`); throws the native fault as a {@link SQLiteError} when none is open. */
 	rollback(): void
-	/** Reads a single PRAGMA, or sets then reads it when a `value` is passed. */
+	/** Reads a single PRAGMA, or sets then reads it when a `value` is passed; throws `INVALID` before any SQL for a name or value the pragma guards refuse. */
 	pragma(name: string, value?: string | number): SQLiteValue | undefined
 	[Symbol.dispose](): void
 }

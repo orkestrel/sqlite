@@ -1,13 +1,21 @@
-import { createSQLiteDatabase, SQLiteError } from '@src/server'
+import { createSQLiteDatabase, isSQLiteError, SQLiteError } from '@src/server'
+import { isString } from '@orkestrel/contract'
+import { captureError } from '@orkestrel/test'
 import { createScratch } from '@orkestrel/test/server'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { afterAll, describe, expect, it } from 'vitest'
-import { lockDatabase, sqliteErrorCode } from '../../setupServer.js'
+import {
+	lockDatabase,
+	REFUSED_PRAGMA_NAMES,
+	REFUSED_PRAGMA_VALUES,
+	sqliteErrorCode,
+} from '../../setupServer.js'
 
 // The SQLite wrapper in a real in-memory database, with no mocks — connect /
 // connected / close lifecycle, the CLOSED gate before connect and after close,
 // execute DDL, prepare round-trip, transact commit and rollback-on-throw, and
-// pragma get + set.
+// pragma get + set with the INVALID refusal of a malformed name or value.
 
 describe('SQLiteDatabase — lifecycle', () => {
 	it('connects lazily and idempotently, and reports connected', () => {
@@ -251,6 +259,9 @@ describe('SQLiteDatabase — bigints', () => {
 })
 
 describe('SQLiteDatabase — pragma', () => {
+	const scratch = createScratch({ prefix: 'sqlite-pragma-test-' })
+	afterAll(() => scratch.destroy())
+
 	it('reads a pragma value', () => {
 		const db = createSQLiteDatabase()
 		db.connect()
@@ -262,6 +273,129 @@ describe('SQLiteDatabase — pragma', () => {
 		db.connect()
 		expect(db.pragma('user_version', 7)).toBe(7)
 		expect(db.pragma('user_version')).toBe(7)
+	})
+
+	it('sets then reads a negative number', () => {
+		const db = createSQLiteDatabase()
+		db.connect()
+		expect(db.pragma('cache_size', -2000)).toBe(-2000)
+		expect(db.pragma('cache_size')).toBe(-2000)
+	})
+
+	it('sets then reads a keyword on a file database', () => {
+		const db = createSQLiteDatabase({ path: join(scratch.path, 'keyword.db') })
+		db.connect()
+		expect(db.pragma('journal_mode')).toBe('delete')
+		expect(db.pragma('journal_mode', 'WAL')).toBe('wal')
+		db.close()
+	})
+
+	it('reads undefined for a name the guard admits and the engine does not know', () => {
+		const db = createSQLiteDatabase()
+		db.connect()
+		expect(db.pragma('_hidden')).toBeUndefined()
+	})
+})
+
+describe('SQLiteDatabase — pragma refusal', () => {
+	it.for(REFUSED_PRAGMA_NAMES)(
+		'refuses $label as a name with INVALID before any SQL runs',
+		({ input }) => {
+			const db = createSQLiteDatabase()
+			db.connect()
+			expect.soft(sqliteErrorCode(() => db.pragma(input))).toBe('INVALID')
+			expect.soft(sqliteErrorCode(() => db.pragma(input, 7))).toBe('INVALID')
+			expect.soft(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 0 })
+			expect.soft(db.prepare('SELECT name FROM sqlite_master').all()).toEqual([])
+			db.close()
+			expect.soft(sqliteErrorCode(() => db.pragma(input))).toBe('INVALID')
+		},
+	)
+
+	it.for(REFUSED_PRAGMA_VALUES)(
+		'refuses $label as a value with INVALID before any SQL runs',
+		({ input }) => {
+			const db = createSQLiteDatabase()
+			db.connect()
+			expect.soft(sqliteErrorCode(() => db.pragma('journal_mode', input))).toBe('INVALID')
+			expect.soft(db.prepare('SELECT name FROM sqlite_master').all()).toEqual([])
+			db.close()
+			expect.soft(sqliteErrorCode(() => db.pragma('journal_mode', input))).toBe('INVALID')
+		},
+	)
+
+	it('refuses what the engine misreads: an exponent-form integer pragma sets its leading digit', () => {
+		const native = new DatabaseSync(':memory:')
+		native.exec('PRAGMA cache_size = 1e+21')
+		expect(native.prepare('PRAGMA cache_size').get()).toEqual({ cache_size: 1 })
+		native.close()
+		const db = createSQLiteDatabase()
+		db.connect()
+		expect(sqliteErrorCode(() => db.pragma('cache_size', 1e21))).toBe('INVALID')
+		expect(db.pragma('cache_size')).toBe(-2000)
+		db.close()
+	})
+
+	it('refuses what the engine misreads: an integer pragma past 32 bits sets 0', () => {
+		const native = new DatabaseSync(':memory:')
+		native.exec('PRAGMA user_version = 2147483647')
+		expect(native.prepare('PRAGMA user_version').get()).toEqual({ user_version: 2147483647 })
+		native.exec('PRAGMA user_version = 2147483648')
+		expect(native.prepare('PRAGMA user_version').get()).toEqual({ user_version: 0 })
+		native.close()
+		const db = createSQLiteDatabase()
+		db.connect()
+		expect(db.pragma('user_version', 2147483647)).toBe(2147483647)
+		expect(sqliteErrorCode(() => db.pragma('user_version', 2147483648))).toBe('INVALID')
+		expect(db.pragma('user_version')).toBe(2147483647)
+		db.close()
+	})
+
+	it('carries each refused input encoded and capped in its context', () => {
+		const db = createSQLiteDatabase()
+		const name = captureError(() => db.pragma('main.user_version'))
+		expect(isSQLiteError(name) ? name.context : undefined).toEqual({
+			pragma: '"main.user_version"',
+		})
+		const value = captureError(() => db.pragma('journal_mode', 'WAL\n'))
+		expect(isSQLiteError(value) ? value.context : undefined).toEqual({
+			pragma: '"journal_mode"',
+			value: '"WAL\\n"',
+		})
+		const short = captureError(() => db.pragma(`${'user_version'.repeat(100)};`))
+		const long = captureError(() => db.pragma(`${'user_version'.repeat(1000)};`))
+		const clipped = isSQLiteError(short) ? short.context?.['pragma'] : undefined
+		const capped = isSQLiteError(long) ? long.context?.['pragma'] : undefined
+		expect(isString(capped) && capped.endsWith('…')).toBe(true)
+		expect(isString(capped) ? capped.length : undefined).toBe(
+			isString(clipped) ? clipped.length : 0,
+		)
+		expect(isSQLiteError(long) ? long.message.length : undefined).toBe(
+			isSQLiteError(short) ? short.message.length : 0,
+		)
+		const fraction = captureError(() => db.pragma('cache_size', 1.5))
+		expect(isSQLiteError(fraction) ? fraction.context : undefined).toEqual({
+			pragma: '"cache_size"',
+			value: '1.5',
+		})
+		const array = captureError(() => Reflect.apply(db.pragma, db, ['cache_size', ['WAL']]))
+		expect(isSQLiteError(array) ? array.context : undefined).toEqual({
+			pragma: '"cache_size"',
+			value: 'array',
+		})
+		const object = captureError(() => Reflect.apply(db.pragma, db, [{ name: 'user_version' }]))
+		expect(isSQLiteError(object) ? object.context : undefined).toEqual({ pragma: 'object' })
+		const shortValue = captureError(() => db.pragma('journal_mode', `${'WAL'.repeat(100)};`))
+		const longValue = captureError(() => db.pragma('journal_mode', `${'WAL'.repeat(1000)};`))
+		const clippedValue = isSQLiteError(shortValue) ? shortValue.context?.['value'] : undefined
+		const cappedValue = isSQLiteError(longValue) ? longValue.context?.['value'] : undefined
+		expect(isString(cappedValue) && cappedValue.endsWith('…')).toBe(true)
+		expect(isString(cappedValue) ? cappedValue.length : undefined).toBe(
+			isString(clippedValue) ? clippedValue.length : 0,
+		)
+		expect(isSQLiteError(longValue) ? longValue.message.length : undefined).toBe(
+			isSQLiteError(shortValue) ? shortValue.message.length : 0,
+		)
 	})
 })
 

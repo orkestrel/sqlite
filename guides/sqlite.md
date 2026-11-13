@@ -51,6 +51,18 @@ db.prepare('SELECT name FROM users WHERE age >= ?').all([18]) // → [{ name: 'A
 | `SQLITE_CONSTRAINT` | const | `19`      | Names the SQLite result code whose low byte, `19`, flags a constraint violation. |
 | `SQLITE_BUSY`       | const | `5`       | Names the SQLite result code whose low byte, `5`, flags a locked-database fault. |
 
+### Validators
+
+| Name            | Kind  | Signature                 | Summary                                                                                                                                                        |
+| --------------- | ----- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `isPragmaName`  | const | `Guard<string>`           | Checks whether a value is a pragma name `pragma` can write into `PRAGMA` text: ASCII letters, digits, and underscores, opening with a letter or an underscore. |
+| `isPragmaValue` | const | `Guard<string \| number>` | Checks whether a value is a pragma value `pragma` can write into `PRAGMA` text: a 32-bit signed integer, or a keyword of ASCII letters and underscores.        |
+
+Each guard returns `false` for any input that is neither a string nor a number and never throws.
+A name admits no schema prefix, quote, space, bracket, or `;`, so `main.journal_mode` and
+`table_info(users)` are refused. A value admits an integer from `-2147483648` to `2147483647`, such as `-2000`, and
+refuses every other number, such as `1.5`, `1e21`, and `2147483648`, as well as `NaN`, the infinities, a quoted literal, and a numeric string such as `'7'`.
+
 ### Helpers and errors
 
 | Name             | Kind     | Signature                                                                                                  | Summary                                                                                                                                         |
@@ -94,17 +106,17 @@ The `transacting` member of `SQLiteDatabaseInterface` reports whether a transact
 
 #### `SQLiteDatabaseInterface`
 
-| Method     | Returns                    | Summary                                                                                                     |
-| ---------- | -------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `connect`  | `void`                     | Opens the underlying connection — lazy and idempotent, so a second call is a no-op.                         |
-| `close`    | `void`                     | Releases the connection; afterward every operation gates `CLOSED` until reconnect.                          |
-| `execute`  | `void`                     | Runs one or more result-less SQL statements (DDL, pragmas) in a single call.                                |
-| `prepare`  | `SQLiteStatementInterface` | Compiles SQL into a reusable prepared statement — the only path that runs queries.                          |
-| `transact` | `R`                        | Runs `scope` between `BEGIN` and `COMMIT`, rolling the whole scope back and rethrowing on a throw.          |
-| `begin`    | `void`                     | Opens a transaction (`BEGIN`); throws the native fault, a nested `BEGIN` included, as a `SQLiteError`.      |
-| `commit`   | `void`                     | Commits the open transaction (`COMMIT`); throws the native fault as a `SQLiteError` when none is open.      |
-| `rollback` | `void`                     | Rolls back the open transaction (`ROLLBACK`); throws the native fault as a `SQLiteError` when none is open. |
-| `pragma`   | `SQLiteValue \| undefined` | Reads a single PRAGMA, or sets then reads it when a `value` is passed.                                      |
+| Method     | Returns                    | Summary                                                                                                                                              |
+| ---------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `connect`  | `void`                     | Opens the underlying connection — lazy and idempotent, so a second call is a no-op.                                                                  |
+| `close`    | `void`                     | Releases the connection; afterward every operation gates `CLOSED` until reconnect.                                                                   |
+| `execute`  | `void`                     | Runs one or more result-less SQL statements (DDL, pragmas) in a single call.                                                                         |
+| `prepare`  | `SQLiteStatementInterface` | Compiles SQL into a reusable prepared statement — the only path that runs queries.                                                                   |
+| `transact` | `R`                        | Runs `scope` between `BEGIN` and `COMMIT`, rolling the whole scope back and rethrowing on a throw.                                                   |
+| `begin`    | `void`                     | Opens a transaction (`BEGIN`); throws the native fault, a nested `BEGIN` included, as a `SQLiteError`.                                               |
+| `commit`   | `void`                     | Commits the open transaction (`COMMIT`); throws the native fault as a `SQLiteError` when none is open.                                               |
+| `rollback` | `void`                     | Rolls back the open transaction (`ROLLBACK`); throws the native fault as a `SQLiteError` when none is open.                                          |
+| `pragma`   | `SQLiteValue \| undefined` | Reads a single PRAGMA, or sets then reads it when a `value` is passed; throws `INVALID` before any SQL for a name or value the pragma guards refuse. |
 
 #### `SQLiteStatementInterface`
 
@@ -128,6 +140,7 @@ These invariants hold across `src/server` ↔ `sqlite.md`:
 7. **`BUSY` on lock contention — `SQLITE_LOCKED` is not `BUSY`.** A write that finds the database locked by another connection retries for `timeout` milliseconds (default `0` — fail immediately), then throws a `BUSY` `SQLiteError` — retryable, unlike the other codes. A `SQLITE_LOCKED` fault (result code `6`, a same-connection table-lock conflict, distinct from `SQLITE_BUSY`'s cross-connection database lock) is **not** mapped to `'BUSY'` — `wrapError` only recognizes `SQLITE_BUSY`, so a `SQLITE_LOCKED` fault surfaces as `'UNKNOWN'` and is not retryable the same way.
 8. **`transacting` mirrors native autocommit state.** `db.transacting` is `true` exactly while a transaction is open (inside `transact(scope)`, or between a manual `BEGIN` and its `COMMIT` / `ROLLBACK`) and `false` otherwise, including when disconnected.
 9. **`transact(scope)` requires a synchronous scope.** If `scope` returns a thenable (an `async` function or a function returning a `Promise`), the transaction is rolled back immediately and a `SQLiteError` with code `'INVALID'` is thrown — an async scope would otherwise return before its awaited work runs, letting `transact` commit prematurely. A transaction that must span async caller code uses `begin()` / `commit()` / `rollback()` directly instead.
+10. **`pragma` owns the syntax of its input.** A pragma name and value cannot be bound as parameters, so `pragma` writes them into the SQL text only after `isPragmaName` admits the name and `isPragmaValue` admits the value. Either refusal throws a `SQLiteError` with code `'INVALID'` before any SQL runs, on an open or a closed connection, and its `context` carries the refused input as `@orkestrel/contract`'s `preview` renders it. A string renders as a double-quoted JSON string, with a newline as `\n`, clipped to a trailing `…` when its quoted form passes 64 characters. Any other value renders without its content: a number as its text, an array as `array`, and an object as `object`. A numeric value is an integer from `-2147483648` to `2147483647`. SQLite misreads every other number without an error: an integer pragma keeps `2147483647`, sets `0` for `2147483648`, and sets `1` for `1e21`. The limit: a pragma that takes a 64-bit value above that range, such as `mmap_size` past 2 GiB, is refused until a consumer needs it, which reopens the bound. A keyword reads back as the engine reports it, so `'WAL'` reads `'wal'`. The guards check syntax, not whether the engine knows the name: an admitted name the engine does not know reads `undefined`.
 
 ## Patterns
 
@@ -231,6 +244,11 @@ db.pragma('user_version', 7) // set then read → 7 (a cheap on-disk schema-vers
 db.pragma('journal_mode', 'WAL') // set then read → 'wal' — durable write-ahead logging for a file db
 ```
 
+A name outside `isPragmaName`, such as `main.journal_mode`, and a value outside `isPragmaValue`,
+such as `'WAL; PRAGMA case_sensitive_like = ON'` or the fraction `1.5`, throw an `INVALID` `SQLiteError` and run no SQL. A numeric value is an integer from `-2147483648` to `2147483647`, because SQLite sets an integer pragma to `0` for `2147483648`; a pragma that takes a larger 64-bit value, such as `mmap_size` past 2 GiB, is refused. A keyword reads back as the engine reports it, so `'WAL'` reads `'wal'`.
+Call either guard first when an input arrives from outside your code and you want a `false`
+rather than a throw.
+
 ### Closing a connection
 
 Closes the connection and reads `connected` afterward:
@@ -307,7 +325,7 @@ try {
 
 ### Practices
 
-- **Use prepared statements with bound parameters**, never string-interpolated values — binding is the SQL-injection-safe path (pragmas, which can't bind, take trusted internal names only).
+- **Use prepared statements with bound parameters**, never string-interpolated values — binding is the SQL-injection-safe path. A pragma can't bind, so `pragma` admits only the bare name `isPragmaName` accepts and the 32-bit integer or keyword `isPragmaValue` accepts.
 - **Keep a transaction scope synchronous and tight** — the wrapper is synchronous, so a scope is a plain function body that commits on return and rolls back on a throw.
 - **Branch on `error.code`** (through `isSQLiteError`) rather than parsing a message — `'CONSTRAINT'` distinguishes a key conflict from any other fault, and `'INVALID'` distinguishes the wrapper's own refusal from an unclassified native fault.
 - **Retry `'BUSY'`, not the others** — it is the one retryable code; back off briefly (or raise `timeout`) before retrying the same operation.
@@ -321,9 +339,10 @@ try {
 ## Tests
 
 - [`tests/guides.test.ts`](../tests/guides.test.ts) — the `## Surface` ↔ `src/server` bijection, the `## Methods` ↔ interface/class method parity, and the equality gate: every `Summary` cell against its declaration's description paragraph, the titled `Connect, execute, and round-trip a row` fence against the `@example` block of that title (pinned so the titled pair cannot be retired silently), and the README pitch against this guide's tagline. It also runs the flagship fences and asserts the values their comments claim.
-- [`tests/src/server/SQLiteDatabase.test.ts`](../tests/src/server/SQLiteDatabase.test.ts) — the database in a real `:memory:` SQLite: connect / close lifecycle, the `CLOSED` gate, execute DDL, prepare round-trip, transact commit and rollback, pragma get + set, and the production options — `readonly` rejecting a write, `foreignKeys` enforcing a real FK violation, `timeout` surfacing `BUSY` from a genuinely locked second connection, and `[Symbol.dispose]` closing inside a `using` block.
+- [`tests/src/server/SQLiteDatabase.test.ts`](../tests/src/server/SQLiteDatabase.test.ts) — the database in a real `:memory:` SQLite: connect / close lifecycle, the `CLOSED` gate, execute DDL, prepare round-trip, transact commit and rollback, pragma get + set for a keyword and for a positive and a negative number, the `INVALID` refusal of each malformed pragma name and value before any SQL runs, and the production options — `readonly` rejecting a write, `foreignKeys` enforcing a real FK violation, `timeout` surfacing `BUSY` from a genuinely locked second connection, and `[Symbol.dispose]` closing inside a `using` block.
 - [`tests/src/server/SQLiteStatement.test.ts`](../tests/src/server/SQLiteStatement.test.ts) — prepared statements: `execute`'s result, positional and named binding, `get` / `all` / `iterate`, an abandoned `iterate` releasing its read lock and finalizing without throwing, and a `CONSTRAINT` violation.
 - [`tests/src/server/helpers.test.ts`](../tests/src/server/helpers.test.ts) — the wrapper's boundary helpers as pure units: `wrapError` mapping a thrown value to a typed `SQLiteError` (real constraint fault → `CONSTRAINT`, real locked-database fault → `BUSY`, non-error → `UNKNOWN`, pass-through) and `bindParameters` normalizing parameters to the native binding shape (array → positional, record → named).
+- [`tests/src/server/validators.test.ts`](../tests/src/server/validators.test.ts) — `isPragmaName` and `isPragmaValue` over tables of admitted and refused forms, and their totality over every input that is neither a string nor a number, a revoked proxy and a throwing getter included.
 - [`tests/src/server/factories.test.ts`](../tests/src/server/factories.test.ts) — `createSQLiteDatabase` returns a working `SQLiteDatabaseInterface` and defaults its path to `:memory:`.
 
 ## See also

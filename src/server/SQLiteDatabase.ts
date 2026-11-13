@@ -5,10 +5,11 @@ import type {
 	SQLiteValue,
 } from './types.js'
 import { DatabaseSync } from 'node:sqlite'
-import { attempt, isPromiseLike } from '@orkestrel/contract'
+import { attempt, isPromiseLike, preview } from '@orkestrel/contract'
 import { SQLiteError } from './errors.js'
 import { wrapError } from './helpers.js'
 import { SQLiteStatement } from './SQLiteStatement.js'
+import { isPragmaName, isPragmaValue } from './validators.js'
 
 /**
  * Implements {@link SQLiteDatabaseInterface} over a lazily opened `DatabaseSync` the instance
@@ -22,9 +23,8 @@ import { SQLiteStatement } from './SQLiteStatement.js'
  * `transact` wraps a scope in `BEGIN` / `COMMIT`, rolling back on a throw;
  * `begin` / `commit` / `rollback` expose those same primitives directly for a
  * long-lived or externally-driven transaction; `pragma` reads (or sets then
- * reads) one PRAGMA value — `name` is trusted
- * internal use only, never untrusted input, because pragma names cannot be bound
- * as parameters. `transacting` reports whether a transaction is open
+ * reads) one PRAGMA value after {@link isPragmaName} and {@link isPragmaValue} admit
+ * its input. `transacting` reports whether a transaction is open
  * (node:sqlite's `isTransaction`), `false` when not connected.
  */
 export class SQLiteDatabase implements SQLiteDatabaseInterface {
@@ -141,9 +141,22 @@ export class SQLiteDatabase implements SQLiteDatabaseInterface {
 		this.execute('ROLLBACK')
 	}
 
-	// Pragmas cannot use bind parameters, so the value is interpolated — safe for
-	// the trusted internal names this layer is called with.
+	// A pragma takes no bind parameters, so both guards run before any text is built.
 	pragma(name: string, value?: string | number): SQLiteValue | undefined {
+		if (!isPragmaName(name)) {
+			throw new SQLiteError(
+				'INVALID',
+				`SQLite pragma name ${preview(name)} is refused: a name is ASCII letters, digits, and underscores, opening with a letter or an underscore`,
+				{ pragma: preview(name) },
+			)
+		}
+		if (value !== undefined && !isPragmaValue(value)) {
+			throw new SQLiteError(
+				'INVALID',
+				`SQLite pragma ${preview(name)} takes a 32-bit signed integer or a keyword of ASCII letters and underscores, not ${preview(value)}`,
+				{ pragma: preview(name), value: preview(value) },
+			)
+		}
 		if (value !== undefined) this.execute('PRAGMA ' + name + ' = ' + value)
 		const row = this.prepare('PRAGMA ' + name).get()
 		return row ? Object.values(row)[0] : undefined
