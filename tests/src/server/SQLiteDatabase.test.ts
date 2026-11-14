@@ -385,6 +385,8 @@ describe('SQLiteDatabase — pragma refusal', () => {
 		})
 		const object = captureError(() => Reflect.apply(db.pragma, db, [{ name: 'user_version' }]))
 		expect(isSQLiteError(object) ? object.context : undefined).toEqual({ pragma: 'object' })
+		const instance = captureError(() => Reflect.apply(db.pragma, db, [new Map()]))
+		expect(isSQLiteError(instance) ? instance.context : undefined).toEqual({ pragma: 'instance' })
 		const shortValue = captureError(() => db.pragma('journal_mode', `${'WAL'.repeat(100)};`))
 		const longValue = captureError(() => db.pragma('journal_mode', `${'WAL'.repeat(1000)};`))
 		const clippedValue = isSQLiteError(shortValue) ? shortValue.context?.['value'] : undefined
